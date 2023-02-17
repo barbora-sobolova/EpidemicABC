@@ -393,7 +393,7 @@ sir.ABC <- function (
   # statistics contains only vectors of daily case counts, whereas the list of 
   # daily case counts contains data frames with additional column specifying the 
   # day.
-  daily.cases.list <- vector(mode = "list", length = times)
+  daily.cases.list <- summary.stats
   
   
   # Allocates a local variable to store proposed particles lambda and mu

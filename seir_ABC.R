@@ -356,14 +356,14 @@ seir.ABC <- function (
   total.counter <- 0
   accept.parts <- matrix(data = NA, nrow = times, ncol = 3,
                          dimnames = list(NULL, c("lambda", "mu", "nu")))
-  summary.stats <- replicate(times, list(NA))
+  summary.stats <- vector(mode = "list", length = times)
   # If there is a transformation, summary statistics and the case counts must be 
   # stored separately, because their dimension may differ due to the 
   # transformation. If there is no transformation, the list of summary 
   # statistics contains only vectors of daily case counts, whereas the list of 
   # daily case counts contains data frames with additional column specifying the 
   # day.
-  daily.cases.list <- replicate(times, list(NA))
+  daily.cases.list <- summary.stats
   
   
   # Allocates a local variable to store proposed particles lambda and mu
