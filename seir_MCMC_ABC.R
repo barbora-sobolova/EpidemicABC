@@ -393,15 +393,6 @@ seir.MCMC.ABC <- function (
         max.day.samp <- daily.cases.samp$day[nrow(daily.cases.samp)]
         # data.frame in this context is faster  than data.table
         
-        # If the sampled epidemic lasted for more days than the observed one, the
-        # observed epidemic is expanded by these days with zero cases.
-        if (max.day.samp > max.day.obs) {
-          daily.cases.obs <- merge(data.frame(day = 0:max.day.samp), daily.cases.obs,
-                                   by = "day", all.x = TRUE)
-          daily.cases.obs$obs.cases[is.na(daily.cases.obs$obs.cases)] <- 0
-          max.day.obs <- max.day.samp
-        }
-        
         # Makes a one-sided outer join of the data frame with the sampled case
         # counts and a data frame with only column "day" in order to add missing 
         # days with zero counts.

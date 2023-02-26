@@ -413,15 +413,6 @@ sir.MCMC.ABC <- function (
         max.day.samp <- daily.cases.samp$day[nrow(daily.cases.samp)]
         # data.frame in this context is faster  than data.table
         
-        # If the sampled epidemic lasted for more days than the observed one, the
-        # observed epidemic is expanded by these days with zero cases.
-        if (max.day.samp > max.day.obs) {
-          daily.cases.obs <- merge(data.frame(day = 0:max.day.samp), daily.cases.obs,
-                                   by = "day", all.x = TRUE)
-          daily.cases.obs$obs.cases[is.na(daily.cases.obs$obs.cases)] <- 0
-          max.day.obs <- max.day.samp
-        }
-        
         # Makes a one-sided outer join of the data frame with the sampled case
         # counts and a data frame with only column "day" in order to add missing 
         # days with zero counts.
@@ -519,23 +510,16 @@ sir.MCMC.ABC <- function (
       
       if (!epi.samp$stopped) {
         # If there were less infections than specified in the 'max.infections',
-        # the output of the epidemic model is processed. Continuous infection
+        # the output of the epidemic model is processed. Continuous infection 
         # times are converted into case counts.
         I.samp <- epi.samp$I[!is.na(epi.samp)]
-        daily.cases.samp <- as.data.frame(table(floor(I.samp), dnn = list("day")),
-                                          responseName = "samp.cases")
+        daily.cases.samp <- as.data.frame(
+          table(floor(epi.samp$I), dnn = list("day"), useNA = "no"),
+          responseName = "samp.cases"
+        )
         daily.cases.samp$day <- as.numeric(daily.cases.samp$day) - 1
         max.day.samp <- daily.cases.samp$day[nrow(daily.cases.samp)]
-        # data.frame in this context is faster  than data.table
-        
-        # If the sampled epidemic lasted for more days than the observed one, the
-        # observed epidemic is expanded by these days with zero cases.
-        if (max.day.samp > max.day.obs) {
-          daily.cases.obs <- merge(data.frame(day = 0:max.day.samp), daily.cases.obs,
-                                   by = "day", all.x = TRUE)
-          daily.cases.obs$obs.cases[is.na(daily.cases.obs$obs.cases)] <- 0
-          max.day.obs <- max.day.samp
-        }
+        # data.frame in this context is faster than data.table
         
         # Makes a one-sided outer join of the data frame with the sampled case
         # counts and a data frame with only column "day" in order to add missing 
@@ -556,7 +540,6 @@ sir.MCMC.ABC <- function (
           # way is to recalculate the the transformation of the whole vector of 
           # observed case counts
           obs.trans <- transf(I.obs)
-          
         } else if (max.day.samp < max.day.obs) {
           daily.cases.samp <- rbind(
             daily.cases.samp,
