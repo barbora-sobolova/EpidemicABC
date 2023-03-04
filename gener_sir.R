@@ -64,8 +64,7 @@ gener.sir <- function (lambda, mu, n.pop = 100, m = 1, max.infections = n.pop) {
   # The epidemic continues if there are at least one active case, the maximum 
   # number of infections does not exceed the 'max.infections' parameter and
   # at least one individual has not been in the Infectious compartment yet.
-  while (length(contact.times) != 0 &&
-         infections <= max.infections && anyNA(infect.time)) {
+  while (length(contact.times) != 0 && infections <= max.infections) {
     
     # The individual, who has the earliest event of the Poisson process
     # potentially infects another individual.
