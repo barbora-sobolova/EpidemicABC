@@ -44,7 +44,7 @@ gener.seir <- function (lambda, mu, nu, n.pop = 100, m = 1,
   # Allocates the infection and exposition times, which are 0 for every 
   # initially infectious individual and NA for everyone susceptible.
   infect.time <- rep(c(0, NA), times = c(m, n.pop))
-  exposed.time <- rep(c(0, NA), times = c(m, n.pop))
+  exposed.time <- infect.time
   
   # Allocates the recovery times, which are 0 + infectious period for
   # every initially infectious individual and NA for everyone susceptible.
@@ -54,11 +54,6 @@ gener.seir <- function (lambda, mu, nu, n.pop = 100, m = 1,
   # individuals. In the following algorithm, always the earliest point will be
   # selected as the infection time.
   contact.times <- lapply(infect.per, poiss.proc.points, lambda = lambda)
-  
-  # Allocates the list of the Poisson process points for the exposed 
-  # individuals. These points are stored separately from 'jump times' to avoid
-  # searching through them. 
-  contact.times.latent <- list()
   
   # Starts measuring the time of events and sets the counter of infections.
   act.time <- 0
@@ -71,104 +66,47 @@ gener.seir <- function (lambda, mu, nu, n.pop = 100, m = 1,
   still.active <- unlist(lapply(contact.times, length)) != 0
   contact.times <- contact.times[still.active]
   
-  latent.cases <- c()
-  
-  # Keeps track, whether there are any active/latent cases.
-  any.active <- length(contact.times) != 0
-  any.latent <- FALSE
-  
   # The epidemic continues if there are at least one active or latent case, the 
   # maximum number of infections does not exceed the 'max.infections' parameter
   # and at least one individual has not been in the Infectious compartment yet.
-  while ((any.active || any.latent) != 0 && infections <= max.infections
-         && anyNA(infect.time)) {
+  while (length(contact.times) != 0 && infections <= max.infections) {
     
-    # Finds out, which event occurred first - a new infection, or a transition
-    # from the Exposed state to the Infectious state. The conditions depend on
-    # whether there are any latent and/or active cases.
-    if (any.active && any.latent) {
-      # Finds the earliest time of potential infection.
-      active.min <- which.min(lapply(contact.times, FUN = choose.first))
-      
-      # Finds the earliest time of possible transition from the Exposed, to 
-      # the Infectious compartment
-      latent.min <- which.min(infect.time[latent.cases])
-      
-      if (contact.times[[active.min]][1] < infect.time[latent.cases[latent.min]]) {
-        infection <- TRUE
-      } else {
-        infection <- FALSE
-      }
-    } else{
-      if (any.active) {
-        infection <- TRUE
-        # Finds the earliest time of potential infection.
-        active.min <- which.min(lapply(contact.times, FUN = choose.first))
-      } else {
-        infection <- FALSE
-        # Finds the earliest time of possible transition from the Exposed, to 
-        # the Infectious compartment
-        latent.min <- which.min(infect.time[latent.cases])
+    # The individual, who has the earliest event of the Poisson process
+    # potentially infects another individual.
+    
+    carrier <- which.min(lapply(contact.times, FUN = choose.first))
+    
+    # Updates the actual time.
+    act.time <- contact.times[[carrier]][1]
+    # Chooses a new infected. If still susceptible, the infection was
+    # successful, new points of the Poisson process are generated and the
+    # times of the exposition, infectiousness and recovery are set.
+    
+    new.infected <- sample(1:(n.pop + m), size = 1)
+    if (is.na(infect.time[new.infected])) {
+      infections <- infections + 1
+      exposed.time[new.infected] <- act.time
+      single.latent.per <- rexp(1, nu)
+      single.infect.per <- rexp(1, mu)
+      infect.time[new.infected] <- act.time + single.latent.per
+      recov.time[new.infected] <-
+        infect.time[new.infected] + single.infect.per
+      # New Poisson process points are generated. If there is none of them,
+      # the empty vector is ignored.
+      new.jumps <- poiss.proc.points(lambda, single.infect.per)
+      if (length(new.jumps) != 0) {
+        contact.times<- c(contact.times, 
+                          list(new.jumps + act.time + single.latent.per))
       }
     }
     
-    if (infection) {
-      # Infection occurred first.
-      
-      # Updates the actual time.
-      act.time <- contact.times[[active.min]][1]
-      # Chooses a new infected. If still susceptible, the infection was
-      # successful, new points of the Poisson process are generated and the
-      # times of the exposition, infectiousness and recovery are set.
-      
-      new.infected <- sample(1:(n.pop + m), size = 1)
-      if (is.na(infect.time[new.infected])) {
-        infections <- infections + 1
-        exposed.time[new.infected] <- act.time
-        single.latent.per <- rexp(1, nu)
-        single.infect.per <- rexp(1, mu)
-        infect.time[new.infected] <- act.time + single.latent.per
-        recov.time[new.infected] <-
-          infect.time[new.infected] + single.infect.per
-        # New Poisson process points are generated. If there is none of them,
-        # the empty vector is ignored.
-        new.jumps <- poiss.proc.points(lambda, single.infect.per)
-        if (length(new.jumps) != 0) {
-          latent.cases <- c(latent.cases, new.infected)
-          contact.times.latent <- c(
-            contact.times.latent, 
-            list(new.jumps + act.time + single.latent.per)
-          )
-        }
-      }
-      
-      # The 'used' point of the Poisson process is removed. If no contact
-      # remains, the corresponding individual is removed from the active cases.
-      contact.times[[active.min]] <- contact.times[[active.min]][-1]
-      if (length(contact.times[[active.min]]) == 0) {
-        contact.times <- contact.times[-active.min]
-      }
-      
-      # Checks if there are any  active cases left.
-      any.active <- length(contact.times) != 0
-      
-    } else {
-      # Transition from the Exposed state to the Infectious state. The Poisson 
-      # process points of the newly infectious individuals are added to the 
-      # 'contact.times' list and are removed from the 'contact.times.latent'
-      # list.
-      latent.cases <- latent.cases[latent.cases != latent.min]
-      contact.times <- c(contact.times, contact.times.latent[latent.min])
-      contact.times.latent <- contact.times.latent[latent.cases]
-      
-      # Checks if there are any latent cases left.
-      any.latent <- length(latent.cases) != 0
-      
-      # Updates the actual time.
-      act.time <- infect.time[latent.cases[latent.min]]
+    # The 'used' point of the Poisson process is removed. If no contact
+    # remains, the corresponding individual is removed from the active cases.
+    contact.times[[carrier]] <- contact.times[[carrier]][-1]
+    if (length(contact.times[[carrier]]) == 0) {
+      contact.times <- contact.times[-carrier]
     }
   }
-  
   return(list(E = exposed.time, I = infect.time, R = recov.time,
               stopped = infections > max.infections))
 }
