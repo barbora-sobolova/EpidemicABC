@@ -1,21 +1,22 @@
 choose.first <- function (x) {x[1]}
 
+#' @title Generate jump times of a Poisson process
+#'
+#' @description The function generates a sequence of jump times of a Poisson
+#' process of rate \code{lambda}.
+#'
+#' @import base
+#'
+#' @param lambda the rate of the Poisson process.
+#' @param duration a numeric value specifying the maximal duration of the
+#'   process.
+#'
+#' @returns a numeric vector of jump times of the Poisson process. If no event
+#'     occurred until the \code{duration}, a vector of length 0 is returned.
+#'
+#' @examples poiss.proc.points(lambda = 1, duration = 2.5)
+
 poiss.proc.points <- function (lambda, duration) {
-  #' @title Generate jump times of a Poisson process
-  #'
-  #' @description The function generates a sequence of jump times of a Poisson
-  #' process of rate \code{lambda}.
-  #'
-  #' @import base
-  #'
-  #' @param lambda the rate of the Poisson process.
-  #' @param duration a numeric value specifying the maximal duration of the
-  #'   process.
-  #'
-  #' @returns a numeric vector of jump times of the Poisson process. If no event
-  #'     occurred until the \code{duration}, a vector of length 0 is returned.
-  #'
-  #' @examples poiss.proc.points(lambda = 1, duration = 2.5)
   
   # Allocates the vector of Poisson process jumps times.
   poiss.proc <- c()
