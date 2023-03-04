@@ -443,7 +443,7 @@ sir.ABC <- function (
           table(floor(epi.samp$I), dnn = list("day"), useNA = "no"),
           responseName = "samp.cases"
         )
-        daily.cases.samp$day <- as.numeric(daily.cases.samp$day) - 1
+        daily.cases.samp$day <- as.numeric(levels(daily.cases.samp$day))
         max.day.samp <- daily.cases.samp$day[nrow(daily.cases.samp)]
         # data.frame in this context is faster than data.table
         

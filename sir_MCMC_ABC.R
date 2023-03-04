@@ -302,7 +302,7 @@ sir.MCMC.ABC <- function (
     I.samp <- epi.samp$I[!is.na(epi.samp)]
     daily.cases.samp <- as.data.frame(table(floor(I.samp), dnn = list("day")),
                                       responseName = "samp.cases")
-    daily.cases.samp$day <- as.numeric(daily.cases.samp$day) - 1
+    daily.cases.samp$day <- as.numeric(levels(daily.cases.samp$day))
     max.day.samp <- daily.cases.samp$day[nrow(daily.cases.samp)]
     # data.frame in this context is faster  than data.table
     
@@ -409,7 +409,7 @@ sir.MCMC.ABC <- function (
         I.samp <- epi.samp$I[!is.na(epi.samp)]
         daily.cases.samp <- as.data.frame(table(floor(I.samp), dnn = list("day")),
                                           responseName = "samp.cases")
-        daily.cases.samp$day <- as.numeric(daily.cases.samp$day) - 1
+        daily.cases.samp$day <- as.numeric(levels(daily.cases.samp$day))
         max.day.samp <- daily.cases.samp$day[nrow(daily.cases.samp)]
         # data.frame in this context is faster  than data.table
         
@@ -517,7 +517,7 @@ sir.MCMC.ABC <- function (
           table(floor(epi.samp$I), dnn = list("day"), useNA = "no"),
           responseName = "samp.cases"
         )
-        daily.cases.samp$day <- as.numeric(daily.cases.samp$day) - 1
+        daily.cases.samp$day <- as.numeric(levels(daily.cases.samp$day))
         max.day.samp <- daily.cases.samp$day[nrow(daily.cases.samp)]
         # data.frame in this context is faster than data.table
         
