@@ -649,13 +649,17 @@ sir.MCMC.ABC <- function (
   if (class(adj.model)[1] != "try-error") {
     independent <- !is.na(adj.model$coefficients[, 1])
     beta.hat <- adj.model$coefficients[independent, ]
-    beta.hat <- as.matrix(beta.hat[-1, ])
-    # If the summary statistic is one-dimensional, beta.hat is a column instead
-    # a row and we need to transpose it.
-    if (ncol(beta.hat) == 1) {
-      beta.hat <- t(beta.hat)
+    if (!is.null(dim(beta.hat))) {
+      beta.hat <- as.matrix(beta.hat[-1, ])
+      # If the summary statistic is one-dimensional, beta.hat is a column instead
+      # a row and we need to transpose it.
+      if (ncol(beta.hat) == 1) {
+        beta.hat <- t(beta.hat)
+      }
+      accept.parts.adj <- accept.parts - covariates[, independent[-1], drop = FALSE] %*% beta.hat
+    } else {
+      class(adj.model)[1] <- "try-error"
     }
-    accept.parts.adj <- accept.parts - covariates[, independent[-1], drop = FALSE] %*% beta.hat
   }
   
   # Returning values ===========================================================
