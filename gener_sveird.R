@@ -131,8 +131,10 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     # state (which is 0 for those, susceptible from the beginning) plus the
     # exponentially distributed time with parameter 'psi'.
     vac.time.cand <- 
-      ifelse(is.null(suscep.time[[new.infected]][1]), 
-             0, suscep.time[[new.infected]][1]) + rexp(1, psi)
+      ifelse(is.null(Rsuscep.time[[new.infected]][1]), 
+             0, Rsuscep.time[[new.infected]][1]) + 
+      ifelse(is.null(Vsuscep.time[[new.infected]][1]), 
+             0, Vsuscep.time[[new.infected]][1]) + rexp(1, psi)
     
     if (contact.times[[active.min]][1] < vac.time.cand) {
       # The infection occurred earlier than the vaccine dose. The candidate 
@@ -193,8 +195,8 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
       # "susceptibility -> infection -> recovery -> susceptibility" cycle).
       
       # Updates the actual time and state of the individual.
-      suscep.time[[new.infected]] <<- c(suscep.time.cand, 
-                                        suscep.time[[new.infected]])
+      Vsuscep.time[[new.infected]] <<- c(suscep.time.cand, 
+                                         Vsuscep.time[[new.infected]])
       act.time <<- suscep.time.cand
       state[new.infected] <<- "S"
       Scontact()
@@ -253,8 +255,8 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
       # The individual became susceptible again before the infection.
       
       # Updates the actual time and state of the individual.
-      suscep.time[[new.infected]] <<- c(next.trans.time[new.infected], 
-                                        suscep.time[[new.infected]])
+      Rsuscep.time[[new.infected]] <<- c(next.trans.time[new.infected], 
+                                         Rsuscep.time[[new.infected]])
       act.time <<- next.trans.time[new.infected]
       next.trans.time[new.infected] <<- NA
       state[new.infected] <<- "S"
@@ -280,26 +282,28 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
   # Stores the exponential time of the R -> S transition.
   next.trans.time <- rep(NA, n.pop)
   
-  # Allocates the times of the possible renewed susceptibility.
-  suscep.time <- vector(mode = "list", length = n.pop)
+  # Allocates the times of the possible renewed susceptibility. It can be either
+  # from hte Recovered or the Vaccinated compartment
+  Vsuscep.time <- vector(mode = "list", length = n.pop)
+  Rsuscep.time <- Vsuscep.time
   
   # Allocates the infection and exposition times, which are lists due to the
   # possibility of a repeated infection. At the beginning, all elements of the
   # lists are empty (NULL) except for the initially infectious individuals
   # whose times of exposition and infectiousness are set as 0.
-  infect.time <- suscep.time
+  infect.time <- Vsuscep.time
   infect.time[1:i0] <- as.list(rep(0, i0))
   exposed.time <- infect.time
   
   # Allocates the times of vaccination and possible recovery times. All are 
   # list, since the events can occur more than once. We do not allocate a new 
-  # list, rather we reuse already existing empty list 'suscep.time'. If 'v0' 
+  # list, rather we reuse already existing empty list 'Vsuscep.time'. If 'v0' 
   # or 'r0' are non-zero, we have to fill the corresponding positions by zero.
-  vac.time <- suscep.time
+  vac.time <- Vsuscep.time
   if (v0 > 0) {
     vac.time[s0 + i0 + 1:v0] <- as.list(rep(0, v0))
   }
-  recov.time <- suscep.time
+  recov.time <- Vsuscep.time
   if (r0 > 0) {
     recov.time[1:r0 + n.pop - r0] <- as.list(rep(0, r0))
   }
@@ -457,7 +461,7 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     
     # Evaluates possible 'R -> S' transitions. For each particle in state 'R'
     # we generate the candidate 'R -> S' transition times. If they are earlier
-    # than the epidemic end, we append them to the 'suscep.time' list.
+    # than the epidemic end, we append them to the 'Rsuscep.time' list.
     in.state <- c(in.state[moves], which(state == "R"))
     if (length(in.state) != 0) {
       suscep.time.cand <- removal.time[in.state] + rexp(length(in.state), 
@@ -465,9 +469,9 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
       moves <- suscep.time.cand < epi.end
       if (any(moves)) {
         # For 'moves' all equal FALSE, we obtain error message.
-        suscep.time[in.state[moves]] <- mapply(
+        Rsuscep.time[in.state[moves]] <- mapply(
           c, as.list(suscep.time.cand[moves]),
-          suscep.time[in.state[moves]],
+          Rsuscep.time[in.state[moves]],
           SIMPLIFY = FALSE)
       }
     }
@@ -483,7 +487,13 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
       vac.time.cand <- 
         unlist(
           lapply(
-            suscep.time[in.state], 
+            Rsuscep.time[in.state], 
+            function (x) {
+              ifelse(length(x) == 0, 0, x[1])
+            })) +
+        unlist(
+          lapply(
+            Vsuscep.time[in.state], 
             function (x) {
               ifelse(length(x) == 0, 0, x[1])
             })) +
@@ -504,7 +514,7 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     
     # Evaluates possible 'V -> S' transitions. For each particle in state 'V'
     # we generate the candidate 'V -> S' transition times. If they are earlier
-    # than the epidemic end, we append them to the 'suscep.time' list.
+    # than the epidemic end, we append them to the 'Vsuscep.time' list.
     in.state <- c(which(state == "V"), in.state[moves])
     # For vectors of length 0 we obtain errors.
     len <- length(in.state)
@@ -525,9 +535,9 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     
     if (any(moves)) {
       # For 'moves' all equal FALSE, we obtain error message.
-      suscep.time[in.state[moves]] <- mapply(
+      Vsuscep.time[in.state[moves]] <- mapply(
         c, as.list(suscep.time.cand[moves]),
-        suscep.time[in.state[moves]],
+        Vsuscep.time[in.state[moves]],
         SIMPLIFY = FALSE
       )
     }
@@ -545,7 +555,7 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
         vac.time.cand <-
           unlist(
             lapply(
-              suscep.time[in.state],
+              Vsuscep.time[in.state],
               function (x) {
                 ifelse(length(x) == 0, 0, x[1])
               })) +
@@ -584,9 +594,9 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
       
       if (any(moves)) {
         # For 'moves' all equal FALSE, we obtain error message.
-        suscep.time[in.state[moves]] <- mapply(
+        Vsuscep.time[in.state[moves]] <- mapply(
           c, as.list(suscep.time.cand[moves]),
-          suscep.time[in.state[moves]],
+          Vsuscep.time[in.state[moves]],
           SIMPLIFY = FALSE)
       }
     }
@@ -614,8 +624,10 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     # There can be more than two vaccination/susceptibility times for this
     # individual, so we remove them all here.
     if (all.comps) {
-      suscep.time[[new.infected]] <-
-        suscep.time[[new.infected]][suscep.time[[new.infected]] < max.duration]
+      Rsuscep.time[[new.infected]] <-
+        Rsuscep.time[[new.infected]][Rsuscep.time[[new.infected]] < max.duration]
+      Vsuscep.time[[new.infected]] <-
+        Vsuscep.time[[new.infected]][Vsuscep.time[[new.infected]] < max.duration]
       vac.time[[new.infected]] <-
         vac.time[[new.infected]][vac.time[[new.infected]] < max.duration] 
     }
@@ -636,7 +648,7 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
   
   # Returning values ===========================================================
   if (all.comps) {
-    return(list(S = suscep.time, V = vac.time, E = exposed.time,
+    return(list(RS = Rsuscep.time, VS = Vsuscep.time, V = vac.time, E = exposed.time,
                 I = infect.time, R = recov.time, D = death.time, state = state,
                 duration = epi.end, stopped = infections > max.infections))
   } else {
