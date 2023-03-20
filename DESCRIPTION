@@ -1,0 +1,19 @@
+Package: EpidemicABC
+Type: Package
+Title: The Approximate Bayesian Computation algorithm for the Markov SIR, SEIR 
+    and ... epidemic models.
+Version: 0.1.0
+Author: Barbora Sobolova
+Maintainer: The package maintainer <b.sobolova@volny.cz>
+Description: A package was created within a masters thesis 'Epidemic models
+    based on stochastic processes' at the Masaryk University in the Czech 
+    Republic. It contains three functions for generating from an SIR, SEIR and
+    ... epidemic model respectively, three functions performing the standard ABC
+    algorithm (one for each model) and three functions performing the MCMC-ABC
+    (one for each model). The key premise is, that the epidemic data consist
+    of equidistant discrete observations of numbers of new cases, e.g. per day,
+    per week...
+License: use_gpl3_license()
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
