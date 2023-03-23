@@ -6,7 +6,7 @@
 #' @import base
 #' @import stats
 #'
-#' @param n.pop the total population size excluding the initial infectious
+#' @param s0 the total population size excluding the initial infectious
 #'     individuals.
 #' @param m the number of initial infectious individuals at the beginning of the
 #'     epidemic.
@@ -21,8 +21,8 @@
 #'
 #' @returns A list of two numerical vectors \code{I} and \code{R} and a logical
 #'     value \code{stopped}. Initial infectious individuals are included in the
-#'     first \code{m} positions. Hence both vectors are of length
-#'     \code{m} + \code{n.pop}.
+#'     first \code{i0} positions. Hence both vectors are of length
+#'     \code{i0} + \code{s0}.
 #'     \itemize{
 #'     \item \code{I} the infection times for each individual
 #'     \item \code{R} the recovery times for each individual
@@ -32,20 +32,20 @@
 #'
 #' @examples
 #' set.seed(80)
-#' gener.sir(n.pop = 1000, m = 5, lambda = 0.6, mu = 0.5)
+#' gener.sir(s0 = 1000, i0 = 5, lambda = 0.6, mu = 0.5)
 
-gener.sir <- function (lambda, mu, n.pop = 100, m = 1, max.infections = n.pop) {
+gener.sir <- function (lambda, mu, s0 = 100, i0 = 1, max.infections = s0) {
 
   # Generates the infectious periods
-  infect.per <- rexp(m, mu)
+  infect.per <- rexp(i0, mu)
   
   # Allocates the infection times, which are 0 for every initially infectious
   # individual and NA for everyone susceptible.
-  infect.time <- rep(c(0, NA), times = c(m, n.pop))
+  infect.time <- rep(c(0, NA), times = c(i0, s0))
   
   # Allocates the recovery times, which are 0 + infectious period for
   # every initially infectious individual and NA for everyone susceptible.
-  recov.time <- c(infect.per, rep(NA, n.pop))
+  recov.time <- c(infect.per, rep(NA, s0))
   
   # Generates the list of the Poisson process points for the initial infectious 
   # individuals. In the following algorithm, always the earliest point will be
@@ -76,7 +76,7 @@ gener.sir <- function (lambda, mu, n.pop = 100, m = 1, max.infections = n.pop) {
     
     # Chooses a new infected. If still susceptible, the infection was successful
     # and new points of the Poisson process are generated.
-    new.infected <- sample(1:(n.pop + m), size = 1)
+    new.infected <- sample(1:(s0 + i0), size = 1)
     if (is.na(infect.time[new.infected])) {
       infections <- infections + 1
       single.infect.per <- rexp(1, mu)

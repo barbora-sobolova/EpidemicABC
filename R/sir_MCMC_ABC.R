@@ -5,9 +5,9 @@
 #'
 #' @param I.obs a positive integer valued vector of daily (weekly, etc.) case
 #'     counts. Days with zero cases must be included.
-#' @param n.pop the total population size excluding the initial infectious
+#' @param s0 the total population size excluding the initial infectious
 #'     individuals.
-#' @param m the number of infectious individuals at the beginning of the
+#' @param i0 the number of infectious individuals at the beginning of the
 #'     epidemic.
 #' @param max.infections the maximum number of infections to occur in a single
 #'     epidemic. If the epidemic tends to generate considerably more infections
@@ -47,12 +47,18 @@
 #'     syntax see the Details section.
 #' @param Sigma a positive definite covariance matrix of the Markov proposal 
 #'     distribution, which is assumed to be a bivariate Gaussian.
+#'     #' @param other.mod An alternative function sampling from the model, which 
+#'     returns a list with element of infection times \code{I} and logical value
+#'     \code{stopped}, which is \code{TRUE} if the \code{max.infections} was
+#'     reached. See examples of the \code{sir.ABC} function for more details.
+#' @param other.mod.params A named lists of parameters supplied to the 
+#'     \code{other.mod} function.
 #' @details
 #'
 #' The parameter \code{prior} must be of the form:
 #'
-#' \code{list(lambda.samp = prior sampler of 'lambda',
-#'            mu.samp = prior sampler of 'mu',
+#' \code{list(lambda.samp = sampler of 'lambda', 
+#'            mu.samp = sampler of 'mu', 
 #'            lambda.dens = prior density of 'lambda',
 #'            mu.dens = prior density of 'mu')}
 #'
@@ -68,47 +74,20 @@
 #'    is returned too as the \code{daily.cases.list}.
 #'
 #' @examples
-#' # The transformation of the case counts onto the vector with
-#' n.pop <- 1000
-#' lambda <- 0.6
-#' mu <- 1 / 2
-#' m <- 5
-#' set.seed(80)
-#' gse <- gener.sir(lambda = lambda, mu = mu, n.pop = n.pop, m = m)
-#' I <- as.vector(table(floor(gse$I)))
-#'
-#' # The logarithmic transformation of the case counts.
-#' transf.log <- function (x) {
-#'   log(x + 1)
-#'  }
-#'
-#' # The variant without kernel, with the uniform prior distribution
-#' # Unif(0.01, 2), Unif(0.01, 1.5) for 'lambda' and 'mu' respectively. The
-#' # logarithmic transformation is used
-#' set.seed(78)
-#' sir.MCMC.ABC(
-#'   I, 
-#'   n.pop = n.pop,
-#'   m = m, times = 2 * 1e4,
-#'   burn.in = 100,
-#'   tolerance = 14,
-#'   prior = c(lambda.samp = runif, mu.samp = runif, 
-#'             lambda.dens = dunif, mu.dens = dunif), 
-#'   prior.params = list(lambda = c(min = 0.01, max = 2),
-#'                       mu = c(min = 0.01, max = 1.5))
-#' )
+#' epi.obs <- c(6, 0, 1, 4, 7, 5, 9, 14, 17, 11, 10, 13, 6, 9, 5, 2, 5, 7, 11, 9,
+#'  12, 19, 13, 12, 13, 16, 19, 10, 19, 19, 7, 12, 11, 11, 9, 10, 10, 13, 18, 5,
+#'  4, 8, 3, 1, 3, 3, 2, 2, 0)
 #' 
 #' # The variant without kernel, with the uniform prior distribution
-#' # Unif(0.01, 2), Unif(0.01, 1.5) for 'lambda' and 'mu' respectively. No
+#' # Unif(0.1, 2.5), Unif(0.1, 1.1) for 'lambda' and 'mu' respectively. No
 #' # transformation is used
 #' set.seed(78)
 #' sir.MCMC.ABC(
 #'   I, 
-#'   n.pop = n.pop,
-#'   m = m, times = 2 * 1e4,
+#'   s0 = s0,
+#'   i0 = i0, times = 2 * 1e4,
 #'   burn.in = 100,
 #'   tolerance = 80,
-#'   transf = transf.log, 
 #'   prior = c(lambda.samp = runif, mu.samp = runif, 
 #'             lambda.dens = dunif, mu.dens = dunif), 
 #'   prior.params = list(lambda = c(min = 0.01, max = 2),
@@ -126,15 +105,15 @@
 #' }
 #' 
 #' # The variant with the gaussian kernel, with the prior distribution
-#' # Unif(0.01, 2) and Unif(0.1, 1.5) for 'lambda' and 'mu' respectively. The
+#' # Unif(0.1, 2.5) and Unif(0.1, 1.5) for 'lambda' and 'mu' respectively. The
 #' # transformation 'transf.total' is used, where we give the double weight
 #' # to the total size (the first element of the summary statistics) by the
 #' # 'dist.metr' parameter.
 #' set.seed(78)
 #' sir.MCMC.ABC(
 #'   I$obs.cases,
-#'   n.pop = n.pop, 
-#'   m = m, 
+#'   s0 = s0, 
+#'   i0 = i0, 
 #'   times = 2 * 1e4, 
 #'   max.init.times = 30, 
 #'   burn.in = 100, 
@@ -143,18 +122,21 @@
 #'   dist.metr = diag(c(2, 1)),
 #'   prior = c(lambda.samp = runif, mu.samp = runif, 
 #'             lambda.dens = dunif, mu.dens = dunif),
-#'   prior.params = list(lambda = c(min = 0.01, max = 2), 
-#'                       mu = c(min = 0.01, max = 1.5))
+#'   prior.params = list(lambda = c(min = 0.1, max = 2.5), 
+#'                       mu = c(min = 0.1, max = 1.1))
 #'  )
 
 sir.MCMC.ABC <- function (
-    I.obs, n.pop, m, max.infections = n.pop,
+    I.obs, s0, i0, max.infections = s0,
     times = 100, max.init.times = 30, burn.in = floor(0.1 * times), tolerance = 1e2,
     transf = NULL, kern = NULL, dist.metr = "euclidean",
     prior = list(lambda.samp = runif, mu.samp = runif, lambda.dens = NULL,
                  mu.dens = NULL),
     Sigma = diag(c(1, 1)),
-    prior.params = list(...)) {
+    prior.params = list(...),
+    other.mod = NULL,
+    other.mod.params = list(...)
+    ) {
   
   # Functions for sampling a candidate particles and calculating density of the
   # Markov proposal distribution (a Gaussian) ==============================================
@@ -174,9 +156,9 @@ sir.MCMC.ABC <- function (
   # because it is tested later in multiple conditions
   use.kern.flag <- !is.null(kern)
   
-  int.param.check <- c(n.pop, m, times, max.infections, max.init.times, burn.in)
+  int.param.check <- c(s0, i0, times, max.infections, max.init.times, burn.in)
   if (any(int.param.check <= 0| int.param.check %% 1 != 0)) {
-    stop("Parameters 'n.pop', 'm', 'max.infections', 'times',
+    stop("Parameters 's0', 'i0', 'max.infections', 'times',
          'max.init.times' and 'burn.in' must be positive integer values.")
   }
   if (!is.function(prior$lambda.samp) | !is.function(prior$mu.samp)) {
@@ -243,6 +225,17 @@ sir.MCMC.ABC <- function (
   
   # Preparation of general variables of the algorithm ==========================
   
+  # Setting up the particular function, which we want to like to generate the 
+  # epidemic. Either the 'gener.sir' function from the EpidemicABC package or
+  # any other function with outputs compatible to the algorithm implementation.
+  if (!is.null(other.mod)) {
+    gener.epi <- other.mod
+    model.params <- other.mod.params
+  } else {
+    gener.epi <- gener.sir
+    model.params <- list(s0 = s0, i0 = i0, max.infections = max.infections)
+  }
+  
   # Finds out the length of the observed epidemic and transforms it
   max.day.obs <- length(I.obs) - 1
   obs.trans <- transf(I.obs)
@@ -297,8 +290,7 @@ sir.MCMC.ABC <- function (
     
     # Samples from the model and processes its output. Continuous infection
     # times are converted into case counts.
-    epi.samp <- gener.sir(n.pop = n.pop, m = m, lambda = parts[1],
-                          mu = parts[2])
+    epi.samp <- do.call(gener.epi, args = c(as.list(parts), model.params))
     I.samp <- epi.samp$I[!is.na(epi.samp)]
     daily.cases.samp <- as.data.frame(table(floor(I.samp), dnn = list("day")),
                                       responseName = "samp.cases")
@@ -399,8 +391,7 @@ sir.MCMC.ABC <- function (
     if (prior.prob.cand > 0) {
       # Samples from the model and processes its output. Continuous infection
       # times are converted into case counts.
-      epi.samp <- gener.sir(n.pop = n.pop, m = m, lambda = parts.cand[1],
-                            mu = parts.cand[2])
+      epi.samp <- do.call(gener.epi, args = c(as.list(parts), model.params))
       
       if (!epi.samp$stopped) {
         # If there were less infections than specified in the 'max.infections',
@@ -505,8 +496,7 @@ sir.MCMC.ABC <- function (
     if (prior.prob.cand > 0) {
       # Samples from the model and processes its output. Continuous infection
       # times are converted into case counts.
-      epi.samp <- gener.sir(n.pop = n.pop, m = m, lambda = parts.cand[1],
-                            mu = parts.cand[2])
+      epi.samp <- do.call(gener.epi, args = c(as.list(parts), model.params))
       
       if (!epi.samp$stopped) {
         # If there were less infections than specified in the 'max.infections',

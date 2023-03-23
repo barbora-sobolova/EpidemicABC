@@ -2,121 +2,232 @@
 #'
 #' @description Performs the classic Approximate Bayesian computation algorithm
 #' for the SEIR stochastic model.
-#' 
-#' @param I.obs A positive integer valued vector of daily case counts. Days
-#' with zero cases must be included.
-#' @param n.pop A positive integer specifying the total population size
-#' excluding the initial infectious individuals.
-#' @param m A positive integer specifying the number of infectious individuals
-#' at the beginning of the epidemic.
-#' @param max.infections A positive integer specifying the maximum number of 
-#' infections to occur in a single epidemic. If the epidemic tends to generate
-#' more infections, it stops immediately and the proposed particle in the ABC 
-#' algorithm is rejected. Use especially for the ABC algorithm when the 
-#' population is large to reduce the amount of time spent on generating a
-#' single epidemic. The value of maximal infections must be set manually 
-#' regarding the data I.obs. 
-#' @param times A desired size of the sample from the approximate posterior
-#' distribution
-#' @param max.times A maximal number of iterations
-#' @param tolerance A positive number specifying the tolerance for accepting 
-#' proposed particles.
-#' @param transf A function transforming the case count. Must be specified
-#' with one parameters - a case counts vector. The population size and the
-#' number of initial infectiouscindividuals can be used too, since these 
-#' variables exist within the 'sir.ABC' function. Their names are 'n.pop' and
-#' 'm' respectively.
-#' @param kern A kernel non-negative function, symmetric
-#' around zero, with maximum at zero. Must be specified without any additional 
-#' parameters, i.e. Must be a function of only the value at which we wish to 
-#' evaluate the kernel.
-#' @param dist.metr Specification of the Mahalanobis distance metric between 
-#' the observed and simulated summary statistic. Must be specified as an 
-#' inverse of a positive definite matrix of the distance metric or the string 
-#' "euclidean". In the latter case, standard euclidean distance is used. 
-#' Use the matrix option only if the dimension of the summary statistics is 
-#' known beforehands!
-#' @param prior A named list specifying the prior distribution of 'lambda' and 
-#' 'mu'. Both distributions are considered independent! Therefore the joint
-#' distribution is a product of the marginals. Must be either of the form:
-#' list(lambda.samp = prior distribution of 'lambda',
-#' mu.samp = prior distribution of 'mu', nu.samp = prior distribution of 'nu')
-#' for the Rejection sampling variant, or of the form: 
-#' list(lambda.dens = prior density of 'lambda', 
-#' mu.dens = prior density of 'mu', nu.dens = prior density of 'nu')
-#' for the Importance sampling variant. In case of the Importance sampling, 
-#' the sampler and the density functions accept the same parameters passed 
-#' from 'prior.params'.
-#' @param importance A named list specifying the importance distribution of 
-#' 'lambda', 'mu' and 'nu'. Must be of the form: 
-#' list(lambda.samp = importance sampler of 'lambda',
-#' mu.samp = importance sampler of 'mu', lambda.dens = importance density of 'lambda',
-#' mu.dens = importance density of 'mu'). The sampler and the density functions
-#' accept the same parameters passed from 'prior.params'.
-#' @param prior.params A named list specifying parameters of the prior 
-#' distribution of 'lambda' and 'mu'. These prior parameters are passed to 
-#' the functions specified in the parameter 'prior'. Must be of the form:
-#' list(lambda = c(params for the prior sampler and density of lambda),
-#' mu = c(params for the prior sampler and density of mu)).
-#' @param importance.params A named list specifying parameters of the 
-#' importance distribution of 'lambda' and 'mu'. These prior parameters are 
-#' passed to the functions specified in the parameter 'importance'. Must be of 
-#' the form: 
-#' list(lambda = c(params for the importance sampler and density of lambda),
-#' mu = c(params for the importance sampler and density of mu)).
-#' 
-#' @returns A list consisting of five to seven elements: a numerical matrix containing 
-#' accepted particles, a numerical matrix containing accepted particles
-#' adjusted by the linear regression, a list of summary statistics, total 
-#' number of iterations and number of iterations, which resulted in accepting
-#' the proposed particle. In case of importance sampling, there is an 
-#' additional numerical matrix of importance weights. If a transformation
-#' is used, then list of non-transformed case counts is returned too.
+#'
+#' @param I.obs a positive integer valued vector of daily (weekly, etc.) case
+#'     counts. Days with zero cases must be included.
+#' @param s0 the total population size excluding the initial infectious
+#'     individuals.
+#' @param i0 the number of infectious individuals at the beginning of the
+#'     epidemic.
+#' @param max.infections the maximum number of infections to occur in a single
+#'     epidemic. If the epidemic tends to generate considerably more infections
+#'     than the observed epidemic, it stops immediately and the proposed
+#'     particle in the ABC algorithm is rejected. Use especially for the ABC
+#'     algorithm when the  population is large (> 10,000) to reduce the amount
+#'     of time spent on generating a single epidemic. The value of maximal
+#'     infections must be set manually regarding the data I.obs.
+#' @param times a desired size of the sample from the approximate posterior
+#'     distribution.
+#' @param max.times a maximal number of iterations
+#' @param tolerance a positive number specifying the tolerance for accepting
+#'     proposed particles.
+#' @param transf a function transforming the case count. Must be specified
+#'     with a single parameter - a case counts vector. If other parameters are
+#'     intended to be used in the \code{transf} function (e.g.the population
+#'     size, or the number of initial infectious individuals), they must be
+#'     defined globally.
+#' @param kern a kernel function (non-negative , symmetric around zero, with
+#'     maximum at zero). Must be specified without any additional parameters,
+#'     i.e. Must be a function of only the value at which we wish to evaluate
+#'     the kernel.
+#' @param dist.metr the specification of the Mahalanobis distance metric between
+#'     the observed and simulated summary statistic. Must be specified as an
+#'     inverse of a positive definite matrix of the distance metric or the
+#'     string "euclidean". In the latter case, standard euclidean distance is
+#'     used. Use the matrix option only if the dimension of the summary
+#'     statistics is known beforehands!
+#' @param prior a named list specifying the prior distribution of the epidemic
+#'     parameters 'lambda', 'mu' and 'delta'. All distributions are considered
+#'     independent! Therefore the joint distribution is a product of the
+#'     marginals. For the exact syntax see the Details section.
+#' @param importance  a named list specifying the importance distribution of
+#'     'lambda', 'mu' and 'delta'. For the exact syntax see the Details section.
+#' @param prior.params a named list specifying parameters of the prior
+#'     distribution of 'lambda', 'mu' and 'delta'. These prior parameters are
+#'     passed to the functions specified in the parameter \code{prior}. For the
+#'     exact syntax see the Details section.
+#' @param importance.params a named list specifying parameters of the
+#'     importance distribution of 'lambda', 'mu' and 'delta'. These prior parameters are
+#'     passed to the functions specified in the parameter \code{importance}.
+#'     For the exact syntax see the Details section.
+#' @param other.mod An alternative function sampling from the model, which 
+#'     returns a list with element of infection times \code{I} and logical value
+#'     \code{stopped}, which is \code{TRUE} if the \code{max.infections} was
+#'     reached. See examples for more details.
+#' @param other.mod.params A named lists of parameters supplied to the 
+#'     \code{other.mod} function.
+#'
+#' @details
+#'
+#' The parameter \code{prior} must be either of the form:
+#'
+#' \code{list(lambda.samp = prior distribution of 'lambda',
+#'            mu.samp = prior distribution of 'mu',
+#'            delta.samp = prior distribution of 'delta')}
+#'
+#' for the Rejection sampling variant, or:
+#'
+#' \code{list(lambda.samp = prior sampler of 'lambda',
+#'            mu.samp = prior sampler of 'mu',
+#'            delta.samp = prior sampler of 'delta',
+#'            lambda.dens = prior density of 'lambda',
+#'            mu.dens = prior density of 'mu',
+#'            delta.dens = prior density of 'delta')}
+#'
+#' for the Importance sampling variant. In case of the Importance sampling, the
+#' sampler and the density functions accept the same parameters passed from
+#' \code{prior.params}.
+#'
+#' The parameter \code{importance} must be of the form:
+#'
+#' \code{list(lambda.dens = importance density of 'lambda',
+#'       mu.dens = importance density of 'mu',
+#'       delta.dens = importance density of 'delta')}
+#'
+#' The sampler and the density functions accept the same parameters passed from
+#' \code{importance.params}.
+#'
+#' The parameter \code{prior.params} must be of the form:
+#'
+#' \code{list(lambda = c(params for the prior sampler and the density of lambda),
+#'            mu = c(params for the prior sampler and the density of mu),
+#'            delta = c(params for the prior sampler and the density of delta))}
+#'
+#'
+#' The parameter \code{importance.params} must be of the form:
+#'
+#' \code{list(lambda = c(params for the importance sampler and the density of lambda),
+#'            mu = c(params for the importance sampler and the density of mu),
+#'            delta = c(params for the importance sampler and the density of delta))}
+#'
+#' @returns  a list consisting of five to seven elements:
+#'     \itemize{
+#'         \item \code{accept.parts} a matrix containing the accepted particles
+#'         \item \code{accept.parts.adj} a matrix containing accepted particles
+#'         adjusted by the linear regression
+#'         \item \code{summary.stats} a list of summary statistics
+#'         \item \code{n.iteration} the total number of iterations
+#'         \item \code{n.accepted} the number of iterations, which resulted in
+#'         accepting the proposed particle
+#'     }
+#'    In case of the importance sampling, there is an additional vector of the
+#'    importance weights \code{IS.weights}. If a kernel was used, there is also
+#'    a vector \code{kernel.weights}. If a transformation is used, then the list
+#'    of the non-transformed case counts is returned too as the
+#'    \code{daily.cases.list}.
 #' @examples
 #' 
-#' transf <- function (x) {
-#'  log(x + 1)
-#'}
-#' gse <- gener.sir(n.pop = 100, m = 5, lambda = 1.5, mu = 0.5)
-#' I <- as.vector(table(floor(gse$I)))
+#' transf <- function (x) {sqrt(x})
+#' epi.obs <- c(5, 0, 0, 0, 2, 1, 0, 2, 0, 2, 2, 2, 4, 0, 3, 0, 1, 3, 1, 2, 2,
+#'    1, 0, 2, 2, 4, 1, 4, 3, 2, 2, 1, 1, 3, 2, 2, 7, 5, 4, 5, 6, 6, 4, 4, 6, 7,
+#'    8, 3, 7, 6, 7, 4, 6, 4, 4, 5, 7, 7, 7, 7, 8, 8, 10, 7, 9, 11, 11, 8, 12,
+#'    5, 7, 11, 1, 6, 6, 8, 8, 5, 4, 5, 5, 8, 6, 6, 6, 4, 5, 2, 9, 5, 8, 4, 2, 
+#'    2, 2, 0, 6, 7, 2, 3, 1, 4, 6, 7, 6, 5, 2, 2, 2, 3, 3, 1, 6, 1, 2, 3, 1, 2,
+#'    2, 1, 0, 0, 1, 3, 1, 1, 0, 3, 2, 1, 1, 1, 2, 1, 2, 0, 0, 0, 0, 1, 0, 0, 1,
+#'     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
 #' 
 #' # The Importance sampling variant without kernel, with the prior 
-#' # distribution
-#' Unif(0.5, 2), Unif(0.1, 1.1) for lambda and mu respectively and the 
-#' importance distribution Gamma(1.5, 1) for both lambda and mu.
-#' sir.ABC(
-#' I, n.pop = 100, m = 5, times = 1e2, max.times = 1e3, tolerance = 50, 
-#' prior = c(lambda.samp = runif, mu.samp = runif, 
-#'           lambda.dens = dunif, mu.dens = dunif),
-#' prior.params = list(lambda = c(min = 0.5, max = 2), 
-#'                     mu = c(min = 0.1, max = 1.1)), 
-#' importance = list(lambda.samp = rgamma, mu.samp = rgamma,
-#'                   lambda.dens = dgamma, mu.dens = dgamma),
-#' importance.params = list(lambda = c(shape = 1.5, rate = 1),
-#'                          mu = c(shape = 1.5, rate = 1))
-#' )
+#' # distribution Unif(0.1, 2.5), Unif(0.1, 1.1), Unif(0.1, 1.1) for lambda, mu 
+#' # and delta respectively and the importance distribution Gamma(1.5, 1) for 
+#' # both lambda, mu and delta
+#' seir.ABC(
+#'   epi.obs, 
+#'   s0 = s0,
+#'   i0 = i0,
+#'   times = 1e2, 
+#'   max.times = 2e3, 
+#'   tolerance = 70, 
+#'   prior = c(lambda.dens = dunif, mu.dens = dunif, nu.dens = dunif),
+#'   importance = c(lambda.samp = rgamma, mu.samp = rgamma, delta.samp = rgamma,
+#'                  lambda.dens = dgamma, mu.dens = dgamma, delta.dens = dgamma),
+#'   prior.params = list(lambda = c(min = 0.1, max = 2.5), 
+#'                       mu = c(min = 0.1, max = 1.1), 
+#'                       delta = c(min = 0.1, max = 1.1)),
+#'   importance.params = list(lambda = c(shape = 1.3, rate = 1),
+#'                            mu = c(shape = 2, rate = 4), 
+#'                            delta = c(shape = 2, rate = 4))
+#'  )
 #' 
-#' The Rejection sampling variant with the standardised normal kernel, with 
-#' the prior distribution Unif(0.5, 2), Unif(0.1, 1.1) for lambda and mu 
-#' respectively and the importance distribution Gamma(1.5, 1) for both lambda 
-#' and mu. A transformation 'transf' is used.
-#' sir.ABC(
-#' I, n.pop = 100, m = 5, times = 1e2, max.times = 1e3, tolerance = 3, 
-#' kern = dunif, transf = transf,
-#' prior = c(lambda.samp = runif, mu.samp = runif),
-#' prior.params = list(lambda = c(min = 0.5, max = 2), 
-#'                     mu = c(min = 0.1, max = 1.1))
+#' # The Rejection sampling variant with the standardised normal kernel, with 
+#' # the prior distribution UUnif(0.1, 2.5), Unif(0.1, 1.1), Unif(0.1, 1.1) for 
+#' # lambda, mu and delta respectively. A square root transformation 'transf' is
+#' #  used.
+#' seir.ABC(
+#'   epi.obs, 
+#'   s0 = s0,
+#'   i0 = i0,
+#'   times = 1e2, 
+#'   max.times = 2e3, 
+#'   tolerance = 18, 
+#'   kern = dnorm,
+#'   transf = transf,
+#'   prior = c(lambda.samp = runif, mu.samp = runif, nu.samp = runif),
+#'   prior.params = list(lambda = c(min = 0.1, max = 2.5), 
+#'                       mu = c(min = 0.1, max = 1.1), 
+#'                       delta = c(min = 0.1, max = 1.1))
+#'  )
+#'  
+#'  #' # Setting up the alternative sampling function
+#' library(adaptivetau)
+#' 
+#' transitions <- list(
+#'   c(S = -1, I = +1),  # infection
+#'   c(E = -1, I = +1),  # becoming infectious 
+#'   c(I = -1, R = +1)  # recovery
+#'   ) 
+#'   
+#' rates <- function (x, params, t) {
+#'   s0 <- x["S"] + x["E"] + x["I"] + x["R"]  # total population size
+#'   c(params$lambda * x["S"] * x["I"] / s0, # rate of infection
+#'   params$delta * x["E"],
+#'   params$mu * x["E"])  # rate of recovery
+#'   }
+#'     
+#'  epi.len <- length(epi.obs) + 20
+#'     
+#'  model <- function (lambda, mu, init.values, transitions, rateFunc,
+#'   max.duration) {
+#'   epi <- as.data.frame(
+#'   ssa.adaptivetau(init.values = init.values, transitions = transitions,
+#'                   rateFunc = rateFunc, tf = max.duration,
+#'                   params = list(lambda = lambda, mu = mu, delta = delta))
+#'                   )
+#'  return(list(I = c(rep(0, i0), epi$time[c(0, -diff(epi$S)) > 0]),
+#'   stopped = FALSE))  # We ignore the max.infection parameter in this example.
+#' }
+#' 
+#' # Algorithm itself
+#' seir.ABC(
+#'   epi.obs, 
+#'   s0 = s0, 
+#'   i0 = i0, 
+#'   times = 1e2, 
+#'   max.times = 2e3, 
+#'   tolerance = 70, 
+#'   kern = dnorm,
+#'   prior = c(lambda.samp = runif, mu.samp = runif, delta.samp = runif),
+#'   prior.params = list(lambda = c(min = 0.1, max = 2.5), 
+#'                       mu = c(min = 0.1, max = 1.1),
+#'                       delta = c(min = 0.1, max = 1.1)
+#'                       ),
+#'   other.mod = model,
+#'   other.mod.params = list(transitions = transitions, rateFunc = rates,
+#'                           max.duration = epi.len,
+#'                           init.values = c(S = s0, E = 0, I = i0, R = 0))
 #' )
 
 seir.ABC <- function (
-    I.obs, n.pop, m, max.infections = n.pop, times = 100, max.times = 1e4, 
+    I.obs, s0, i0, max.infections = s0, times = 100, max.times = 1e4, 
     tolerance = 1e2, transf = NULL, kern = NULL, dist.metr = "euclidean",
-    prior = list(lambda.samp = runif, mu.samp = runif, nu.samp = runif,
-                 lambda.dens = NULL, mu.dens = NULL, nu.dens = NULL),  
-    importance = list(lambda.samp = NULL, mu.samp = NULL, nu.samp = NULL,
-                      lambda.dens = NULL, mu.dens = NULL, nu.dens = NULL), 
+    prior = list(lambda.samp = runif, mu.samp = runif, delta.samp = runif,
+                 lambda.dens = NULL, mu.dens = NULL, delta.dens = NULL),  
+    importance = list(lambda.samp = NULL, mu.samp = NULL, delta.samp = NULL,
+                      lambda.dens = NULL, mu.dens = NULL, delta.dens = NULL), 
     prior.params = list(...), 
-    importance.params = list(...)) {
+    importance.params = list(...),
+    other.mod = NULL,
+    other.mod.params = list(...)
+    ) {
 
   # Functions for different algorithm variants =================================
   K.IS.ABC <- function() {
@@ -198,13 +309,13 @@ seir.ABC <- function (
   use.kern.flag <- !is.null(kern)
   use.importance.flag <- !is.null(unlist(importance))
   
-  int.param.check <- c(n.pop, m, times, max.times)
+  int.param.check <- c(s0, i0, times, max.times)
   if (any(int.param.check <= 0 | int.param.check %% 1 != 0)) {
-    stop("Parameters 'n.pop', 'm', 'times' and 'max.times' must be positive 
+    stop("Parameters 's0', 'i0', 'times' and 'max.times' must be positive 
          integer values.")
   }
   if ((!is.function(prior$lambda.samp) || !is.function(prior$mu.samp) ||
-       !is.function(prior$nu.samp)) && !use.importance.flag) {
+       !is.function(prior$delta.samp)) && !use.importance.flag) {
     stop("Parameter 'prior' must be a properly named list of functions.")
   }
   if (!is.function(kern) && use.kern.flag) {
@@ -212,8 +323,8 @@ seir.ABC <- function (
   }
   if (use.importance.flag &&
       (!is.function(importance$lambda.samp) || 
-       !is.function(importance$mu.samp) || !is.function(importance$nu.samp))) {
-    stop("Parameters 'importance$lambda', 'importance$mu' and 'importance$nu'
+       !is.function(importance$mu.samp) || !is.function(importance$delta.samp))) {
+    stop("Parameters 'importance$lambda', 'importance$mu' and 'importance$delta'
          must be functions.")
   }
   if (!is.numeric(I.obs) || sum(I.obs %% 1, na.rm = TRUE) != 0) {
@@ -263,19 +374,19 @@ seir.ABC <- function (
     # Sets the sampling distribution as the importance distribution.
     lambda.sampler <- importance$lambda.samp
     mu.sampler <- importance$mu.samp
-    nu.sampler <- importance$nu.samp
+    delta.sampler <- importance$delta.samp
     lambda.sampler.args <- as.list(c(n = 1, importance.params$lambda))
     mu.sampler.args <- as.list(c(n = 1, importance.params$mu))
-    nu.sampler.args <- as.list(c(n = 1, importance.params$nu))
+    delta.sampler.args <- as.list(c(n = 1, importance.params$delta))
     
     # Prepares the argument lists for evaluating the prior and importance
     # density functions
     lambda.prior.dens.args <- as.list(c(x = NA, prior.params$lambda))
     mu.prior.dens.args <- as.list(c(x = NA, prior.params$mu))
-    nu.prior.dens.args <- as.list(c(x = NA, prior.params$nu))
+    delta.prior.dens.args <- as.list(c(x = NA, prior.params$delta))
     lambda.importance.dens.args <- as.list(c(x = NA, importance.params$lambda))
     mu.importance.dens.args <- as.list(c(x = NA, importance.params$mu))
-    nu.importance.dens.args <- as.list(c(x = NA, importance.params$nu))
+    delta.importance.dens.args <- as.list(c(x = NA, importance.params$delta))
     
     # Allocates the output parameter 'weights'
     IS.weights <- rep(NA, times)
@@ -311,8 +422,8 @@ seir.ABC <- function (
     lambda.sampler.args <- as.list(c(n = 1, prior.params$lambda))
     mu.sampler <- prior$mu
     mu.sampler.args <- as.list(c(n = 1, prior.params$mu))
-    nu.sampler <- prior$nu
-    nu.sampler.args <- as.list(c(n = 1, prior.params$nu))
+    delta.sampler <- prior$delta
+    delta.sampler.args <- as.list(c(n = 1, prior.params$delta))
     
     if (use.kern.flag) {
       # This branch is the algorithm using a kernel function and the rejection 
@@ -341,6 +452,17 @@ seir.ABC <- function (
   
   # Preparation of general variables of the algorithm ==========================
   
+  # Setting up the particular function, which we want to like to generate the 
+  # epidemic. Either the 'gener.seir' function from the EpidemicABC package or
+  # any other function with outputs compatible to the algorithm implementation.
+  if (!is.null(other.mod)) {
+    gener.epi <- other.mod
+    model.params <- other.mod.params
+  } else {
+    gener.epi <- gener.seir
+    model.params <- list(s0 = s0, i0 = i0, max.infections = max.infections)
+  }
+  
   # Sets the variable, which indicates, whether to sample an epidemic from the
   # model. It stays always TRUE for the rejection sampling variants. For the 
   # importance sampling, it is set as False every time, there is proposed
@@ -355,7 +477,7 @@ seir.ABC <- function (
   accept.counter <- 0
   total.counter <- 0
   accept.parts <- matrix(data = NA, nrow = times, ncol = 3,
-                         dimnames = list(NULL, c("lambda", "mu", "nu")))
+                         dimnames = list(NULL, c("lambda", "mu", "delta")))
   summary.stats <- vector(mode = "list", length = times)
   # If there is a transformation, summary statistics and the case counts must be 
   # stored separately, because their dimension may differ due to the 
@@ -376,7 +498,7 @@ seir.ABC <- function (
     # lambda stored at the first position, mu at the second position
     parts[1] <- do.call(lambda.sampler, args = lambda.sampler.args) 
     parts[2] <- do.call(mu.sampler, args = mu.sampler.args)
-    parts[3] <- do.call(nu.sampler, args = nu.sampler.args)
+    parts[3] <- do.call(delta.sampler, args = delta.sampler.args)
     
     # If the importance weights of the proposed particle are 0 (i.e. the prior 
     # distribution is 0, we do not need to generate a sample epidemic)
@@ -386,18 +508,18 @@ seir.ABC <- function (
       # importance density
       lambda.prior.dens.args[[1]] <- parts[1]
       mu.prior.dens.args[[1]] <- parts[2]
-      nu.prior.dens.args[[1]] <- parts[3]
+      delta.prior.dens.args[[1]] <- parts[3]
       lambda.importance.dens.args[[1]] <- parts[1]
       mu.importance.dens.args[[1]] <- parts[2]
-      nu.importance.dens.args[[1]] <- parts[3]
+      delta.importance.dens.args[[1]] <- parts[3]
       
       single.IS.weight <- 
         do.call(prior$lambda.dens, args = lambda.prior.dens.args) /
         do.call(importance$lambda.dens, args = lambda.importance.dens.args) *
         do.call(prior$mu.dens, args = mu.prior.dens.args) /
         do.call(importance$mu.dens, args = mu.importance.dens.args) *
-        do.call(prior$nu.dens, args = nu.prior.dens.args) /
-        do.call(importance$nu.dens, args = nu.importance.dens.args)
+        do.call(prior$delta.dens, args = delta.prior.dens.args) /
+        do.call(importance$delta.dens, args = delta.importance.dens.args)
       # zero becomes FALSE, non-zero number becomes TRUE
       do.simulate <- as.logical(single.IS.weight)
     }
@@ -406,9 +528,7 @@ seir.ABC <- function (
     # the 'max.infections', the whole sample is discarded and new iteration 
     # starts.
     if (do.simulate) {
-      epi.samp <- gener.seir(n.pop = n.pop, m = m, lambda = parts[1],
-                             mu = parts[2], nu = parts[3], 
-                             max.infections = max.infections)
+      epi.samp <- do.call(gener.epi, args = c(as.list(parts), model.params))
       
       if (!epi.samp$stopped) {
         # If there were less infections than specified in the 'max.infections',

@@ -6,14 +6,14 @@
 #' @import base
 #' @import stats
 #'
-#' @param n.pop the total population size excluding the initial infectious
+#' @param s0 the total population size excluding the initial infectious
 #'     individuals.
-#' @param m the number of initial infectious individuals at the beginning of the
+#' @param i0 the number of initial infectious individuals at the beginning of the
 #'     epidemic.
 #' @param lambda the rate of the Poisson process, which generates the points
 #'     when the infection can occur.
 #' @param mu the rate of the exponential distribution of the infectious periods.
-#' @param nu the rate of the exponential distribution of the latent periods.
+#' @param delta the rate of the exponential distribution of the latent periods.
 #' @param max.infections how many infections can occur before the epidemic
 #'     stops. Use especially for the ABC algorithm  when the population is large
 #'     to reduce the amount of time spent on generating a single epidemic, which
@@ -23,7 +23,7 @@
 #' @returns A list of three numerical vectors \code{E}, \code{I} and \code{R}
 #'     and a logical value \code{stopped}. Initial infectious individuals are
 #'     included in the first \code{m} positions. Hence all three vectors are of
-#'     length \code{m} + \code{n.pop}.
+#'     length \code{i0} + \code{s0}.
 #'     \itemize{
 #'     \item \code{I} the infection times for each individual
 #'     \item \code{E} the exposition times for each individual
@@ -33,22 +33,21 @@
 #'     }
 #'
 #' @examples
-#' gener.seir(n.pop = 1000, m = 5, lambda = 0.6, mu = 0.3, nu = 1)
+#' gener.seir(s0 = 1000, i0 = 5, lambda = 0.6, mu = 0.3, delta = 1)
 
-gener.seir <- function (lambda, mu, nu, n.pop = 100, m = 1,
-                        max.infections = n.pop) {
+gener.seir <- function (lambda, mu, delta, s0 = 100, i0 = 1, max.infections = s0) {
   
   # Generates the infectious periods of the initial infectious individuals.
-  infect.per <- rexp(m, mu)
+  infect.per <- rexp(i0, mu)
   
   # Allocates the infection and exposition times, which are 0 for every 
   # initially infectious individual and NA for everyone susceptible.
-  infect.time <- rep(c(0, NA), times = c(m, n.pop))
+  infect.time <- rep(c(0, NA), times = c(i0, s0))
   exposed.time <- infect.time
   
   # Allocates the recovery times, which are 0 + infectious period for
   # every initially infectious individual and NA for everyone susceptible.
-  recov.time <- c(infect.per, rep(NA, n.pop))
+  recov.time <- c(infect.per, rep(NA, s0))
   
   # Generates the list of the Poisson process points for the initial infectious 
   # individuals. In the following algorithm, always the earliest point will be
@@ -82,11 +81,11 @@ gener.seir <- function (lambda, mu, nu, n.pop = 100, m = 1,
     # successful, new points of the Poisson process are generated and the
     # times of the exposition, infectiousness and recovery are set.
     
-    new.infected <- sample(1:(n.pop + m), size = 1)
+    new.infected <- sample(1:(s0 + i0), size = 1)
     if (is.na(infect.time[new.infected])) {
       infections <- infections + 1
       exposed.time[new.infected] <- act.time
-      single.latent.per <- rexp(1, nu)
+      single.latent.per <- rexp(1, delta)
       single.infect.per <- rexp(1, mu)
       infect.time[new.infected] <- act.time + single.latent.per
       recov.time[new.infected] <-

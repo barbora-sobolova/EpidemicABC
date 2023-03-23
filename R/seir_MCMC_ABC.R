@@ -5,9 +5,9 @@
 #'
 #' @param I.obs a positive integer valued vector of daily (weekly, etc.) case
 #'     counts. Days with zero cases must be included.
-#' @param n.pop the total population size excluding the initial infectious
+#' @param s0 the total population size excluding the initial infectious
 #'     individuals.
-#' @param m the number of infectious individuals at the beginning of the
+#' @param i0 the number of infectious individuals at the beginning of the
 #'     epidemic.
 #' @param max.infections the maximum number of infections to occur in a single
 #'     epidemic. If the epidemic tends to generate considerably more infections
@@ -48,14 +48,22 @@
 #' @param Sigma a diagonal positive definite covariance matrix of the Markov 
 #'     proposal distribution, which is assumed to be a 3-dimensional Gaussian
 #'     with independent marginals.
+#' @param other.mod An alternative function sampling from the model, which 
+#'     returns a list with element of infection times \code{I} and logical value
+#'     \code{stopped}, which is \code{TRUE} if the \code{max.infections} was
+#'     reached. See examples of the 'seir.ABC' function for more details.
+#' @param other.mod.params A named lists of parameters supplied to the 
+#'     \code{other.mod} function.
 #' @details
 #'
 #' The parameter \code{prior} must be of the form:
 #'
-#' \code{list(lambda.samp = prior sampler of 'lambda',
-#'            mu.samp = prior sampler of 'mu',
+#' \code{list(lambda.samp = sampler of 'lambda', 
+#'            mu.samp = sampler of 'mu', 
+#'            delta.samp = sampler of 'delta',
 #'            lambda.dens = prior density of 'lambda',
-#'            mu.dens = prior density of 'mu')}
+#'            mu.dens = prior density of 'mu',
+#'            delta.dens = prior density of 'delta')}
 #'
 #' @returns a list consisting of five to seven elements:
 #'     \itemize{
@@ -79,63 +87,67 @@
 #' # mean and variance may be within the tolerance region and the proposed
 #' # particle may be accepted. So the summary statistic is set as a sufficiently
 #' # large number, which leads to the rejection.
-#' m <- 5
-#' n.pop <- 1000
 #' 
-#' transf <- function (x) {
-#'    non.zero <- x != 0
-#'    return(c(sum(x[non.zero]), 
-#'             ifelse(any(non.zero), max(which(non.zero)), 0)))
-#' }
-#' set.seed(79)
-#' gse <- gener.seir(lambda = 0.55, mu = 0.5, n.pop = 1000, m = 5)
-#' I <- as.vector(table(floor(gse$I)))
+#' transf.sqrt <- function (x) {sqrt(x)}
+#' 
+#' epi.obs <- c(5, 0, 0, 0, 2, 1, 0, 2, 0, 2, 2, 2, 4, 0, 3, 0, 1, 3, 1, 2, 2,
+#'    1, 0, 2, 2, 4, 1, 4, 3, 2, 2, 1, 1, 3, 2, 2, 7, 5, 4, 5, 6, 6, 4, 4, 6, 7,
+#'    8, 3, 7, 6, 7, 4, 6, 4, 4, 5, 7, 7, 7, 7, 8, 8, 10, 7, 9, 11, 11, 8, 12,
+#'    5, 7, 11, 1, 6, 6, 8, 8, 5, 4, 5, 5, 8, 6, 6, 6, 4, 5, 2, 9, 5, 8, 4, 2, 
+#'    2, 2, 0, 6, 7, 2, 3, 1, 4, 6, 7, 6, 5, 2, 2, 2, 3, 3, 1, 6, 1, 2, 3, 1, 2,
+#'    2, 1, 0, 0, 1, 3, 1, 1, 0, 3, 2, 1, 1, 1, 2, 1, 2, 0, 0, 0, 0, 1, 0, 0, 1,
+#'     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
 #'
 #' # The variant without kernel, with the uniform prior distribution
-#' # Unif(0.5, 2), Unif(0.1, 1.5) for 'lambda' and 'mu' respectively.
+#' # Unif(0.1, 2.5), Unif(0.1, 1.1), Unif(0.1, 1.1) for 'lambda', 'mu' and 
+#' # 'delta' respectively. Square root transformation is used. We set the 
+#' # maximum of infections as 700.
 #'
 #' set.seed(75)
 #' seir.MCMC.ABC(
 #'   I,
-#'   n.pop = n.pop,
-#'   m = m,
+#'   s0 = s0,
+#'   i0 = i0,
 #'   max.infections = 700,
-#'   times = 1e4,
-#'   max.init.times = 30,
+#'   times = 1e3,
+#'   max.init.times = 50,
 #'   tolerance = 2.5,
-#'   transf = transf,
-#'   prior = c(lambda.samp = runif, mu.samp = runif),
-#'   prior.params = list(lambda = c(min = 0.01, max = 2),
-#'                       mu = c(min = 0.01, max = 1.5)),
+#'   transf = transf.sqrt,
+#'   prior = c(lambda.samp = runif, mu.samp = runif, delta.samp = runif),
+#'   prior.params = list(lambda = c(min = 0.1, max = 2.5),
+#'                       mu = c(min = 0.1, max = 1.1),
+#'                       delta = c(min = 0.1, max = 1.1)),
 #'   Sigma = diag(c(1, 1, 1))
 #' )
 #'
 #' # The variant with the gaussian kernel, with the prior distribution
-#' # Unif(0.5, 2) and Unif(0.1, 1.5) for 'lambda' and 'mu' respectively. No
+#' # Unif(0.1, 2.5) and Unif(0.1, 1.1) for 'lambda' and 'mu' respectively. No
 #' # transformation is used.
 #' set.seed(76)
 #' sir.MCMC.ABC(
 #'   I,
-#'   n.pop = n.pop,
-#'   m = m,
-#'   max.infections = 700,
+#'   s0 = s0,
+#'   i0 = i0,
 #'   times = 1e4,
-#'   max.init.times = 30,
+#'   max.init.times = 50,
 #'   tolerance = 100,
 #'   kern = dnorm,
 #'   prior = c(lambda.samp = runif, mu.samp = runif),
-#'   prior.params = list(lambda = c(min = 0.01, max = 2),
-#'                       mu = c(min = 0.01, max = 1.5))
+#'   prior.params = list(lambda = c(min = 0.1, max = 2.5),
+#'                       mu = c(min = 0.1, max = 1.1))
 #' )
 
 seir.MCMC.ABC <- function (
-    I.obs, n.pop, m, max.infections = n.pop,
+    I.obs, s0, i0, max.infections = s0,
     times = 100, max.init.times = 30, burn.in = floor(0.1 * times), tolerance = 1e2,
     transf = NULL, kern = NULL, dist.metr = "euclidean",
-    prior = list(lambda.samp = runif, mu.samp = runif, nu.samp = runif, 
-                 lambda.dens = NULL, mu.dens = NULL, nu.dens = NULL),
+    prior = list(lambda.samp = runif, mu.samp = runif, delta.samp = runif, 
+                 lambda.dens = NULL, mu.dens = NULL, delta.dens = NULL),
     Sigma = diag(c(1, 1, 1)),
-    prior.params = list(...)) {
+    prior.params = list(...),
+    other.mod = NULL,
+    other.mod.params = list(...)
+    ) {
   
   # Input parameters check =====================================================
   
@@ -143,9 +155,9 @@ seir.MCMC.ABC <- function (
   # because it is tested later in multiple conditions
   use.kern.flag <- !is.null(kern)
   
-  int.param.check <- c(n.pop, m, times, max.infections, max.init.times, burn.in)
+  int.param.check <- c(s0, i0, times, max.infections, max.init.times, burn.in)
   if (any(int.param.check <= 0| int.param.check %% 1 != 0)) {
-    stop("Parameters 'n.pop', 'm', 'max.infections', 'times',
+    stop("Parameters 's0', 'i0', 'max.infections', 'times',
          'max.init.times' and 'burn.in' must be positive integer values.")
   }
   if (!is.function(prior$lambda.samp) | !is.function(prior$mu.samp)) {
@@ -220,6 +232,17 @@ seir.MCMC.ABC <- function (
   
   # Preparation of general variables of the algorithm ==========================
   
+  # Setting up the particular function, which we want to like to generate the 
+  # epidemic. Either the 'gener.seir' function from the EpidemicABC package or
+  # any other function with outputs compatible to the algorithm implementation.
+  if (!is.null(other.mod)) {
+    gener.epi <- other.mod
+    model.params <- other.mod.params
+  } else {
+    gener.epi <- gener.seir
+    model.params <- list(s0 = s0, i0 = i0, max.infections = max.infections)
+  }
+  
   # Finds out the length of the observed epidemic and transforms it
   max.day.obs <- length(I.obs) - 1
   obs.trans <- transf(I.obs)
@@ -233,7 +256,7 @@ seir.MCMC.ABC <- function (
   
   # Allocates the output parameters
   accept.parts <- matrix(data = NA, nrow = times, ncol = 3,
-                         dimnames = list(NULL, c("lambda", "mu", "nu")))
+                         dimnames = list(NULL, c("lambda", "mu", "delta")))
   summary.stats <- vector(mode = "list", length = times)
   kernel.weights <- rep(NA, times)
   # If there is a transformation, summary statistics and the case counts must be
@@ -253,7 +276,7 @@ seir.MCMC.ABC <- function (
   # Prepares the argument lists for evaluating the prior density function
   lambda.prior.dens.args <- as.list(c(x = NA, prior.params$lambda))
   mu.prior.dens.args <- as.list(c(x = NA, prior.params$mu))
-  nu.prior.dens.args <- as.list(c(x = NA, prior.params$nu))
+  delta.prior.dens.args <- as.list(c(x = NA, prior.params$delta))
   
   # Initialisation of the algorithm ============================================
   distance <- Inf
@@ -267,13 +290,12 @@ seir.MCMC.ABC <- function (
     # lambda stored at the first position, mu at the second position
     parts[1] <- do.call(prior$lambda.samp, args = as.list(c(1, prior.params$lambda)))
     parts[2] <- do.call(prior$mu.samp, args = as.list(c(1, prior.params$mu)))
-    parts[3] <- do.call(prior$nu.samp, args = as.list(c(1, prior.params$nu)))
+    parts[3] <- do.call(prior$delta.samp, args = as.list(c(1, prior.params$delta)))
     
     # Samples from the model and processes its output. Continuous infection
     # times are converted into case counts.
     
-    epi.samp <- gener.seir(n.pop = n.pop, m = m, lambda = parts[1],
-                           mu = parts[2], nu = parts[3])
+    epi.samp <- do.call(gener.epi, args = c(as.list(parts), model.params))
     I.samp <- epi.samp$I[!is.na(epi.samp)]
     daily.cases.samp <- as.data.frame(table(floor(I.samp), dnn = list("day")),
                                       responseName = "samp.cases")
@@ -347,12 +369,12 @@ seir.MCMC.ABC <- function (
   # that prior distributions of mu and lambda are independent.
   lambda.prior.dens.args[[1]] <- parts[1]
   mu.prior.dens.args[[1]] <- parts[2]
-  nu.prior.dens.args[[1]] <- parts[3]
+  delta.prior.dens.args[[1]] <- parts[3]
   
   prior.prob <- 
     do.call(prior$lambda.dens, args = lambda.prior.dens.args) *
     do.call(prior$mu.dens, args = mu.prior.dens.args) *
-    do.call(prior$nu.dens, args = nu.prior.dens.args)
+    do.call(prior$delta.dens, args = delta.prior.dens.args)
   
   # The burn-in period =========================================================
   
@@ -364,11 +386,11 @@ seir.MCMC.ABC <- function (
     # Compute the prior probability of the candidate particle
     lambda.prior.dens.args[[1]] <- parts.cand[1]
     mu.prior.dens.args[[1]] <- parts.cand[2]
-    nu.prior.dens.args[[1]] <- parts.cand[3]
+    delta.prior.dens.args[[1]] <- parts.cand[3]
     prior.prob.cand <- 
       do.call(prior$lambda.dens, args = lambda.prior.dens.args) *
       do.call(prior$mu.dens, args = mu.prior.dens.args) *
-      do.call(prior$nu.dens, args = nu.prior.dens.args)
+      do.call(prior$delta.dens, args = delta.prior.dens.args)
     
     # If the candidate particle is inside the support of the prior density,
     # the ABC and MCMC step of the algorithm is executed, i.e. an epidemic is
@@ -379,8 +401,7 @@ seir.MCMC.ABC <- function (
     if (prior.prob.cand > 0) {
       # Samples from the model and processes its output. Continuous infection
       # times are converted into case counts.
-      epi.samp <- gener.seir(n.pop = n.pop, m = m, lambda = parts.cand[1],
-                             mu = parts.cand[2], nu = parts.cand[3])
+      epi.samp <- do.call(gener.epi, args = c(as.list(parts), model.params))
       
       if (!epi.samp$stopped) {
         # If there were less infections than specified in the 'max.infections',
@@ -472,11 +493,11 @@ seir.MCMC.ABC <- function (
     # Compute the prior probability of the candidate particle
     lambda.prior.dens.args[[1]] <- parts.cand[1]
     mu.prior.dens.args[[1]] <- parts.cand[2]
-    nu.prior.dens.args[[1]] <- parts.cand[3]
+    delta.prior.dens.args[[1]] <- parts.cand[3]
     prior.prob.cand <- 
       do.call(prior$lambda.dens, args = lambda.prior.dens.args) *
       do.call(prior$mu.dens, args = mu.prior.dens.args) *
-      do.call(prior$nu.dens, args = nu.prior.dens.args)
+      do.call(prior$delta.dens, args = delta.prior.dens.args)
     
     # If the candidate particle is inside the support of the prior density,
     # the ABC and MCMC step of the algorithm is executed, i.e. an epidemic is
@@ -487,8 +508,7 @@ seir.MCMC.ABC <- function (
     if (prior.prob.cand > 0) {
       # Samples from the model and processes its output. Continuous infection
       # times are converted into case counts.
-      epi.samp <- gener.seir(n.pop = n.pop, m = m, lambda = parts.cand[1],
-                             mu = parts.cand[2], nu = parts[3])
+      epi.samp <- do.call(gener.epi, args = c(as.list(parts), model.params))
       
       if (!epi.samp$stopped) {
         # If there were less infections than specified in the 'max.infections',
