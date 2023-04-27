@@ -8,7 +8,7 @@
 #'     when the infection can occur.
 #' @param mu the rate of the exponential distribution of the time from
 #'     the start of the infectiousness to the time of recovery.
-#' @param nu the rate of the exponential distribution of the latent periods.
+#' @param delta the rate of the exponential distribution of the latent periods.
 #' @param psi the rate of the exponential distribution of the time before
 #'     the first vaccine dose.
 #' @param omega the rate of the exponential distribution of the time, after
@@ -54,11 +54,11 @@
 #'     }
 #'
 #' @examples
-#' gener.sveird(lambda = 2, mu = 0.5, nu = 0.25, psi = 0.2, omega = 0.05,
+#' gener.sveird(lambda = 2, mu = 0.5, delta = 0.25, psi = 0.2, omega = 0.05,
 #'              phi = 0.1, max.duration = 100, kappa = 0.1, s0 = 1000,
 #'              i0 = 1, v0 = 5, r0 = 10, all.comps = TRUE)
 
-gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration, 
+gener.sveird <- function (lambda, mu, delta, psi, phi, omega, kappa, max.duration, 
                           s0 = 100, i0 = 1, v0 = 0, r0 = 0, 
                           max.infections = 1e4, all.comps = TRUE) {
   
@@ -72,49 +72,6 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
   # when the global variables would be passed to the functions as the formal
   # parameters, and the benchmarking, whether this implementation is faster,
   # is left as future work.
-  
-  infect.fun <- function () {
-    # A successful infection occurs. The newly infected individual is assigned 
-    # the "E" state, the number of infections increases. The newly infected
-    # individual is assigned the exposed time infection time and the 
-    # recovery/death time. New points of the Poisson process are generated.
-    
-    state[new.infected] <<- "EI"
-    infections <<- infections + 1
-    single.latent.per <- rexp(1, nu)
-    
-    # Recovery or death may occur. We choose the earlier event.
-    single.infect.per.toR <- rexp(1, mu)
-    single.infect.per.toD <- rexp(1, kappa)
-    
-    if (single.infect.per.toR < single.infect.per.toD) {
-      # Recovery first
-      recov.time[[new.infected]] <<- c(
-        contact.times[[carrier]][1] + single.latent.per + single.infect.per.toR,
-        recov.time[[new.infected]]
-      )
-      removal.time[new.infected] <<- recov.time[[new.infected]][1]
-      new.jumps <- poiss.proc.points(lambda, single.infect.per.toR)
-    } else {
-      # Death first
-      death.time[new.infected] <<- 
-        contact.times[[carrier]][1] + single.latent.per + single.infect.per.toD
-      removal.time[new.infected] <<- death.time[new.infected]
-      new.jumps <- poiss.proc.points(lambda, single.infect.per.toD)
-    }
-    
-    # If the newly generated Poisson process points are not an empty vector, we
-    # add the contact times of the newly infected individual into the 
-    # 'contact.times' list, otherwise we ignore him.
-    if (length(new.jumps) != 0) {
-      contact.times <<- c(contact.times,
-                          list(new.jumps + contact.times[[carrier]][1] + single.latent.per))
-    }
-    
-    exposed.time[[new.infected]] <<- c(contact.times[[carrier]][1], exposed.time[[new.infected]])
-    infect.time[[new.infected]] <<- c(contact.times[[carrier]][1] + single.latent.per, 
-                                      infect.time[[new.infected]])
-  }
   
   Scontact <- function () {
     # The contact was made between an infectious and a susceptible individual.
@@ -131,14 +88,53 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
       ifelse(is.null(Vsuscep.time[[new.infected]][1]), 
              0, Vsuscep.time[[new.infected]][1])) + rexp(1, psi)
     
-    if (contact.times[[carrier]][1] < vac.time.cand) {
+    if (act.time < vac.time.cand) {
       # The infection occurred earlier than the vaccine dose. The candidate 
       # vaccination time is ignored and the individual is infected
       # (enters the latent period), which corresponds to the real-world
       # situation, when an infection would usually result in postponing the 
       # vaccination.
       
-      infect.fun()
+      # The newly infected individual is assigned 
+      # the "EI" state, the number of infections increases. The newly infected
+      # individual is assigned the exposition time, the infection time and the 
+      # recovery/death time. New points of the Poisson process are generated.
+      
+      state[new.infected] <<- "EI"
+      infections <<- infections + 1
+      single.latent.per <- rexp(1, delta)
+      
+      # Recovery or death may occur. We choose the earlier event.
+      single.infect.per.toR <- rexp(1, mu)
+      single.infect.per.toD <- rexp(1, kappa)
+      
+      if (single.infect.per.toR < single.infect.per.toD) {
+        # Recovery first
+        recov.time[[new.infected]] <<- c(
+          act.time + single.latent.per + single.infect.per.toR,
+          recov.time[[new.infected]]
+        )
+        removal.time[new.infected] <<- recov.time[[new.infected]][1]
+        new.jumps <- poiss.proc.points(lambda, single.infect.per.toR)
+      } else {
+        # Death first
+        death.time[new.infected] <<- 
+          act.time + single.latent.per + single.infect.per.toD
+        removal.time[new.infected] <<- death.time[new.infected]
+        new.jumps <- poiss.proc.points(lambda, single.infect.per.toD)
+      }
+      
+      # If the newly generated Poisson process points are not an empty vector, we
+      # add the contact times of the newly infected individual into the 
+      # 'contact.times' list, otherwise we ignore him.
+      if (length(new.jumps) != 0) {
+        contact.times <<- c(contact.times,
+                            list(new.jumps + act.time + single.latent.per))
+      }
+      
+      exposed.time[[new.infected]] <<- c(act.time, exposed.time[[new.infected]])
+      infect.time[[new.infected]] <<- c(act.time + single.latent.per, 
+                                        infect.time[[new.infected]])
     } else {
       # The vaccine dose was given before the infection. The susceptible
       # individual transits to the V state and we resolve the contact by the
@@ -165,14 +161,13 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     # compare it with the possible infection time.
     
     # The candidate vaccination dose time is the last time entering the V state
-    # plus the exponentially distributed time with parameter 'phi1'.
-    suscep.time.cand <- vac.time[[new.infected]][1] + rexp(1, phi)
+    # plus the exponentially distributed time with parameter 'phi'.
+    if (is.na(next.trans.time[new.infected])) {
+      next.trans.time[new.infected] <<- 
+        vac.time[[new.infected]][1] + rexp(1, phi)
+    }
     
-    if (contact.times[[carrier]][1] < suscep.time.cand) {
-      # The infection occurred earlier than the loss of immunity, then the
-      # individual was protected by the vaccine and nothing happens.
-      
-    } else {
+    if (act.time >= next.trans.time[new.infected]) {
       # The immunity was lost before the infection. The vaccinated  individual 
       # transits to the S state and we resolve the contact by the Scontact() 
       # function, which then might lead back to the Vcontact(). Eventually, the 
@@ -184,9 +179,10 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
       # "susceptibility -> infection -> recovery -> susceptibility" cycle).
       
       # Updates the actual time and state of the individual.
-      Vsuscep.time[[new.infected]] <<- c(suscep.time.cand, 
+      Vsuscep.time[[new.infected]] <<- c(next.trans.time[new.infected], 
                                          Vsuscep.time[[new.infected]])
       state[new.infected] <<- "S"
+      next.trans.time[new.infected] <<- NA 
       Scontact()
     }      
   }
@@ -195,7 +191,7 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     # The contact was made between two infectious individuals or between an 
     # infectious and a exposed individual. The contacted one might have already
     # recovered/died. In the  following, we check the state.
-    if (removal.time[new.infected] < contact.times[[carrier]][1]) {
+    if (removal.time[new.infected] < act.time) {
       # The individual has already recovered/died.
       
       if (is.na(death.time[new.infected])) {
@@ -207,9 +203,9 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
         # The individual has died. Nothing happens
         state[new.infected] <<- "D"
       }
-    } else {
-      # The individual is still infectious/exposed, therefore nothing happens
-    }
+    } 
+    # Else, the individual is still infectious/exposed, therefore nothing 
+    # happens.
   }
   
   Rcontact <- function () {
@@ -227,11 +223,7 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
         recov.time[[new.infected]][1] + rexp(1, omega)
     }
     
-    if (contact.times[[carrier]][1] < next.trans.time[new.infected]) {
-      # The infection occurred earlier than the loss of immunity. Therefore 
-      # nothing happens
-      
-    } else {
+    if (act.time >= next.trans.time[new.infected]) {
       # The individual became susceptible again before the infection.
       
       # Updates the actual time and state of the individual.
@@ -373,17 +365,25 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     # than the epidemic end, we append them to the 'Rsuscep.time' list.
     in.state <- c(in.state[moves], which(state == "R"))
     if (length(in.state) != 0) {
-      suscep.time.cand <- removal.time[in.state] + rexp(length(in.state),
-                                                        omega)
-      moves <- suscep.time.cand < epi.end
+      # Some individuals might have already been assigned the candidate renewed
+      # susceptibility time. For those who have not, we generate some.
+      next.trans.time[in.state] <- ifelse(
+        is.na(next.trans.time[in.state]),
+        removal.time[in.state] + rexp(length(in.state), omega),
+        next.trans.time[in.state]
+        )
+        
+
+      moves <- next.trans.time[in.state] < epi.end
       if (any(moves)) {
         # For 'moves' all equal FALSE, we would obtain error message without the 
         # 'any(moves)' condition.
         Rsuscep.time[in.state[moves]] <- mapply(
-          c, as.list(suscep.time.cand[moves]),
+          c, as.list(next.trans.time[in.state][moves]),
           Rsuscep.time[in.state[moves]],
           SIMPLIFY = FALSE)
       }
+      next.trans.time[moves] <- NA
     }
 
     # Evaluates possible 'S -> V' transitions. For each particle in state 'S'
@@ -431,14 +431,17 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     if (len != 0) {
       # Some times of renewed susceptibility might be non-existent, so we perceive
       # them as 0.
-      suscep.time.cand <-
+      next.trans.time[in.state] <- ifelse(
+        is.na(next.trans.time[in.state]),
         unlist(
           lapply(
             vac.time[in.state],
             function (x) {
               ifelse(length(x) == 0, 0, x[1])
-            })) + rexp(len, phi)
-      moves <- suscep.time.cand < epi.end
+            })) + rexp(len, phi),
+        next.trans.time[in.state]
+        )
+      moves <- next.trans.time[in.state] < epi.end
     } else {
       moves <- rep(FALSE, len)
     }
@@ -446,11 +449,12 @@ gener.sveird <- function (lambda, mu, nu, psi, phi, omega, kappa, max.duration,
     if (any(moves)) {
       # For 'moves' all equal FALSE, we obtain error message.
       Vsuscep.time[in.state[moves]] <- mapply(
-        c, as.list(suscep.time.cand[moves]),
+        c, as.list(next.trans.time[in.state][moves]),
         Vsuscep.time[in.state[moves]],
         SIMPLIFY = FALSE
       )
     }
+    next.trans.time[in.state] <- NA
 
     # All particles that moved from 'V' to 'S' might further move in the cycle
     # 'S -> V -> S'. The cycle ends, when no particle can move anymore.
