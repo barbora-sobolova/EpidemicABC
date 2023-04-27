@@ -41,15 +41,15 @@
 #' 'mu'. Both distributions are considered independent! Therefore the joint
 #' distribution is a product of the marginals. Must be either of the form:
 #' list(lambda.samp = prior distribution of 'lambda',
-#' mu.samp = prior distribution of 'mu', nu.samp = prior distribution of 'nu')
+#' mu.samp = prior distribution of 'mu', delta.samp = prior distribution of 'delta')
 #' for the Rejection sampling variant, or of the form: 
 #' list(lambda.dens = prior density of 'lambda', 
-#' mu.dens = prior density of 'mu', nu.dens = prior density of 'nu')
+#' mu.dens = prior density of 'mu', delta.dens = prior density of 'delta')
 #' for the Importance sampling variant. In case of the Importance sampling, 
 #' the sampler and the density functions accept the same parameters passed 
 #' from 'prior.params'.
 #' @param importance A named list specifying the importance distribution of 
-#' 'lambda', 'mu' and 'nu'. Must be of the form: 
+#' 'lambda', 'mu' and 'delta'. Must be of the form: 
 #' list(lambda.samp = importance sampler of 'lambda',
 #' mu.samp = importance sampler of 'mu', lambda.dens = importance density of 'lambda',
 #' mu.dens = importance density of 'mu'). The sampler and the density functions
@@ -118,18 +118,20 @@ sveird.ABC <- function (
     compart.weights = c(I = 1, VI = NA, RI = NA, RVI = NA, V = NA, R = NA, D = NA),
     dist.metr = list(I = "euclidean", VI = NULL, RI = NULL, RVI = NULL, V = NULL,
                      R = NULL, D = NULL),
-    prior = list(lambda.samp = runif, mu.samp = runif, nu.samp = runif,
+    prior = list(lambda.samp = runif, mu.samp = runif, delta.samp = runif,
                  psi.samp = runif, phi.samp = runif, kappa.samp = runif,
                  omega.samp = runif, lambda.dens = NULL, mu.dens = NULL,
-                 nu.dens = NULL, psi.dens = NULL, phi.dens = NULL,
+                 delta.dens = NULL, psi.dens = NULL, phi.dens = NULL,
                  kappa.dens = NULL, omega.dens = NULL),
-    importance = list(lambda.samp = NULL, mu.samp = NULL, nu.samp = NULL,
+    importance = list(lambda.samp = NULL, mu.samp = NULL, delta.samp = NULL,
                       psi.samp = NULL, phi.samp = NULL, kappa.samp = NULL,
                       omega.samp = NULL, lambda.dens = NULL, mu.dens = NULL, 
-                      nu.dens = NULL, psi.dens = NULL, phi.dens = NULL,
+                      delta.dens = NULL, psi.dens = NULL, phi.dens = NULL,
                       kappa.dens = NULL, omega.dens = NULL), 
     prior.params = list(...), 
-    importance.params = list(...)) {
+    importance.params = list(...),
+    other.mod = NULL,
+    other.mod.params = list(...)) {
   
   # Functions for different algorithm variants =================================
   K.IS.ABC <- function() {
@@ -303,11 +305,25 @@ sveird.ABC <- function (
   # Definitions of methods of data processing ==================================
   processing <- function (compartment, max.day.obs.inner, obs.vector,
                                  obs.trans.inner, transf.inner, dist.fun.inner) {
-    compartment.times <- unlist(compartment)
+    
+    other.incidence <- is.data.frame(compartment)
+    
+    if (!other.incidence) {
+      compartment.times <- unlist(compartment)
+    } else {
+      compartment.times <- compartment
+    }
+    
     if (length(compartment.times) != 0) {
-      daily.samp <- as.data.frame(table(floor(compartment.times), dnn = list("day")), 
-                                  responseName = "samp")
-      daily.samp$day <- as.numeric(levels(daily.samp$day))
+      if (!other.incidence) {
+        
+        daily.samp <- as.data.frame(table(floor(compartment.times), dnn = list("day")), 
+                                    responseName = "samp")
+        daily.samp$day <- as.numeric(levels(daily.samp$day))
+      } else {
+        daily.samp <- compartment.times
+      }
+
       max.day.samp <- daily.samp$day[nrow(daily.samp)]
       
       # Makes a one-sided outer join of the data frame with the sampled case
@@ -336,10 +352,8 @@ sveird.ABC <- function (
           data.frame(day = (max.day.samp + 1):max.day.obs.inner, samp = 0)
         )
       }
- #     cat("Max day samp:", max.day.samp, "\n")
     } else {
-      daily.samp <- data.frame(day = 0:max.day.obs.inner, samp.cases = 0)
-#      cat("Max day samp:", 0, "\n")
+      daily.samp <- data.frame(day = 0:max.day.obs.inner, samp = 0)
     }
     
     # Transforms the case count.
@@ -347,18 +361,6 @@ sveird.ABC <- function (
     
     # Computes the distance.
     distance <- dist.fun.inner(obs.trans.inner, samp.trans)
-    
-    
-
-    # cat("Max day obs:", max.day.obs.inner, "\n")
-    # cat("Daily samp:\n")
-    # print(daily.samp)
-    # cat("Daily obs:\n")
-    # print(obs.vector)
-    # 
-    # cat("Samp trans:", length(samp.trans), "\n")
-    # cat("Obs trans:", length(obs.trans.inner), "\n")
-    # cat("Distance:", distance, "\n")
     
     return(list(samp.trans = samp.trans, obs.trans = obs.trans.inner, 
                 distance = distance, max.day.obs = max.day.obs.inner, 
@@ -379,7 +381,7 @@ sveird.ABC <- function (
   }
   if (!use.importance.flag &&
       (!is.function(prior$lambda.samp) || !is.function(prior$mu.samp) ||
-       !is.function(prior$nu.samp) || !is.function(prior$psi.samp) ||
+       !is.function(prior$delta.samp) || !is.function(prior$psi.samp) ||
        !is.function(prior$phi.samp) || !is.function(prior$kappa.samp) ||
        !is.function(prior$omega.samp))) {
     stop("Parameter 'prior' must be a properly named list.")
@@ -389,7 +391,7 @@ sveird.ABC <- function (
   }
   if (use.importance.flag && 
       (!is.function(importance$lambda.samp) || 
-       !is.function(importance$mu.samp) || !is.function(importance$nu.samp) ||
+       !is.function(importance$mu.samp) || !is.function(importance$delta.samp) ||
        !is.function(importance$psi.samp) || !is.function(importance$phi.samp) ||
        !is.function(importance$kappa.samp) || 
        !is.function(importance$omega.samp))) {
@@ -602,14 +604,14 @@ sveird.ABC <- function (
     # Sets the sampling distribution as the importance distribution.
     lambda.sampler <- importance$lambda.samp
     mu.sampler <- importance$mu.samp
-    nu.sampler <- importance$nu.samp
+    delta.sampler <- importance$delta.samp
     psi.sampler <- importance$psi.samp
     phi.sampler <- importance$phi.samp
     kappa.sampler <- importance$kappa.samp
     omega.sampler <- importance$omega.samp
     lambda.sampler.args <- as.list(c(n = 1, importance.params$lambda))
     mu.sampler.args <- as.list(c(n = 1, importance.params$mu))
-    nu.sampler.args <- as.list(c(n = 1, importance.params$nu))
+    delta.sampler.args <- as.list(c(n = 1, importance.params$delta))
     psi.sampler.args <- as.list(c(n = 1, importance.params$psi))
     phi.sampler.args <- as.list(c(n = 1, importance.params$phi))
     kappa.sampler.args <- as.list(c(n = 1, importance.params$kappa))
@@ -619,14 +621,14 @@ sveird.ABC <- function (
     # density functions
     lambda.prior.dens.args <- as.list(c(x = NA, prior.params$lambda))
     mu.prior.dens.args <- as.list(c(x = NA, prior.params$mu))
-    nu.prior.dens.args <- as.list(c(x = NA, prior.params$nu))
+    delta.prior.dens.args <- as.list(c(x = NA, prior.params$delta))
     psi.prior.dens.args <- as.list(c(x = NA, prior.params$psi))
     phi.prior.dens.args <- as.list(c(x = NA, prior.params$phi))
     kappa.prior.dens.args <- as.list(c(x = NA, prior.params$kappa))
     omega.prior.dens.args <- as.list(c(x = NA, prior.params$omega))
     lambda.importance.dens.args <- as.list(c(x = NA, importance.params$lambda))
     mu.importance.dens.args <- as.list(c(x = NA, importance.params$mu))
-    nu.importance.dens.args <- as.list(c(x = NA, importance.params$nu))
+    delta.importance.dens.args <- as.list(c(x = NA, importance.params$delta))
     psi.importance.dens.args <- as.list(c(x = NA, importance.params$psi))
     phi.importance.dens.args <- as.list(c(x = NA, importance.params$phi))
     kappa.importance.dens.args <- as.list(c(x = NA, importance.params$kappa))
@@ -666,8 +668,8 @@ sveird.ABC <- function (
     lambda.sampler.args <- as.list(c(n = 1, prior.params$lambda))
     mu.sampler <- prior$mu
     mu.sampler.args <- as.list(c(n = 1, prior.params$mu))
-    nu.sampler <- prior$nu
-    nu.sampler.args <- as.list(c(n = 1, prior.params$nu))
+    delta.sampler <- prior$delta
+    delta.sampler.args <- as.list(c(n = 1, prior.params$delta))
     psi.sampler <- prior$psi
     psi.sampler.args <- as.list(c(n = 1, prior.params$psi))
     phi.sampler <- prior$phi
@@ -705,6 +707,18 @@ sveird.ABC <- function (
   
   # Preparation of general variables of the algorithm ==========================
   
+  # Setting up the particular function, which we want to like to generate the 
+  # epidemic. Either the 'gener.sveird' function from the EpidemicABC package or
+  # any other function with outputs compatible to the algorithm implementation.
+  if (!is.null(other.mod)) {
+    gener.epi <- other.mod
+    model.params <- other.mod.params
+  } else {
+    gener.epi <- gener.sveird
+    model.params <- list(s0 = s0, i0 = i0, max.infections = max.infections,
+                         max.duration = max.duration)
+  }
+  
   # Sets the variable, which indicates, whether to sample an epidemic from the
   # model. It stays always TRUE for the rejection sampling variants. For the 
   # importance sampling, it is set as False every time, there is proposed
@@ -719,7 +733,7 @@ sveird.ABC <- function (
   accept.counter <- 0
   total.counter <- 0
   accept.parts <- matrix(data = NA, nrow = times, ncol = 7,
-                         dimnames = list(NULL, c("lambda", "mu", "nu", "psi",
+                         dimnames = list(NULL, c("lambda", "mu", "delta", "psi",
                                                  "phi", "kappa", "omega")))
   # If there is a transformation, summary statistics and the case counts must be 
   # stored separately, because their dimension may differ due to the 
@@ -797,7 +811,8 @@ sveird.ABC <- function (
   compart.weights <- compart.weights[!is.na(compart.weights)]
   
   # Allocates a local variable to store proposed particles lambda and mu
-  parts <- rep(NA, 7)
+  parts <- c(lambda = NA, mu = NA, delta = NA, psi = NA, phi = NA, kappa = NA,
+             omega = NA)
   
   # Main cycle of the algorithm ================================================
   
@@ -806,7 +821,7 @@ sveird.ABC <- function (
     # lambda stored at the first position, mu at the second position
     parts[1] <- do.call(lambda.sampler, args = lambda.sampler.args) 
     parts[2] <- do.call(mu.sampler, args = mu.sampler.args)
-    parts[3] <- do.call(nu.sampler, args = nu.sampler.args)
+    parts[3] <- do.call(delta.sampler, args = delta.sampler.args)
     parts[4] <- do.call(psi.sampler, args = psi.sampler.args)
     parts[5] <- do.call(phi.sampler, args = phi.sampler.args)
     parts[6] <- do.call(kappa.sampler, args = kappa.sampler.args)
@@ -820,14 +835,14 @@ sveird.ABC <- function (
       # importance density
       lambda.prior.dens.args[[1]] <- parts[1]
       mu.prior.dens.args[[1]] <- parts[2]
-      nu.prior.dens.args[[1]] <- parts[3]
+      delta.prior.dens.args[[1]] <- parts[3]
       psi.prior.dens.args[[1]] <- parts[4]
       phi.prior.dens.args[[1]] <- parts[5]
       kappa.prior.dens.args[[1]] <- parts[6]
       omega.prior.dens.args[[1]] <- parts[7]
       lambda.importance.dens.args[[1]] <- parts[1]
       mu.importance.dens.args[[1]] <- parts[2]
-      nu.importance.dens.args[[1]] <- parts[3]
+      delta.importance.dens.args[[1]] <- parts[3]
       psi.importance.dens.args[[1]] <- parts[4]
       phi.importance.dens.args[[1]] <- parts[5]
       kappa.importance.dens.args[[1]] <- parts[6]
@@ -838,8 +853,8 @@ sveird.ABC <- function (
         do.call(importance$lambda.dens, args = lambda.importance.dens.args) *
         do.call(prior$mu.dens, args = mu.prior.dens.args) /
         do.call(importance$mu.dens, args = mu.importance.dens.args) *
-        do.call(prior$nu.dens, args = nu.prior.dens.args) /
-        do.call(importance$nu.dens, args = nu.importance.dens.args) *
+        do.call(prior$delta.dens, args = delta.prior.dens.args) /
+        do.call(importance$delta.dens, args = delta.importance.dens.args) *
         do.call(prior$psi.dens, args = psi.prior.dens.args) /
         do.call(importance$psi.dens, args = psi.importance.dens.args) *
         do.call(prior$phi.dens, args = phi.prior.dens.args) /
@@ -850,17 +865,11 @@ sveird.ABC <- function (
         do.call(importance$omega.dens, args = omega.importance.dens.args)
       do.simulate <- as.logical(single.IS.weight)
     }
-    
     # Samples from the model. If there were more infections, than specified in 
     # the 'max.infections', the whole sample is discarded and new iteration 
     # starts.
     if (do.simulate) {
-      epi.samp <- gener.sveird(
-        s0 = s0, i0 = i0, v0 = v0, r0 = r0, max.duration = max.duration,
-        lambda = parts[1], mu = parts[2], nu = parts[3], psi = parts[4], 
-        phi = parts[5], kappa = parts[6], omega = parts[7], 
-        max.infections = max.infections
-      )
+      epi.samp <- do.call(gener.epi, args = c(as.list(parts), model.params))
       
       if (!epi.samp$stopped) {
         # If there were less infections than specified in the 'max.infections',
@@ -872,6 +881,7 @@ sveird.ABC <- function (
           obs.vector =  I.obs, obs.trans.inner = obs.trans[["I"]],
           transf.inner = transf$I, dist.fun.inner = dist.fun$I
         )
+        
         obs.trans$I <- results.I$obs.trans
         max.day.obs["I"] <- results.I$max.day.obs
         I.obs <- results.I$obs.vector
@@ -884,16 +894,6 @@ sveird.ABC <- function (
             lapply(epi.samp$V, function (x) {ifelse(length(x) == 0, Inf, x[length(x)])}))
           compart.after <- mapply(function (x, times) {x[x > times]},
                                   epi.samp$I, prev.vac.times)
-          # if (length(compart.after) != length(prev.vac.times)) {
-          #   print(length(epi.samp$V))
-          #   print(length(lapply(epi.samp$V, function (x) {ifelse(length(x) == 0, Inf, x[length(x)])})))
-          #   print(prev.vac.times)
-          #   cat("Length of comp (VI):", length(compart.after), "\n")
-          #   cat("Length of times:", length(prev.vac.times), "\n")
-          # }
-          
-
-
           results.VI <- processing(
             compartment = compart.after, max.day.obs.inner =  max.day.obs["VI"],
             obs.vector =  VI.obs, obs.trans.inner = obs.trans[["VI"]],
@@ -1004,8 +1004,8 @@ sveird.ABC <- function (
   
   # Prepares the return value list
   return.values <- list(
-    accept.parts = accept.parts,
-    summary.stats = summary.stats, 
+    accept.parts = accept.parts[1:accept.counter, ],
+    summary.stats = summary.stats[1:accept.counter], 
     n.iterations = total.counter,
     n.accepted = accept.counter
   )
