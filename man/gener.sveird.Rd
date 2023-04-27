@@ -7,7 +7,7 @@
 gener.sveird(
   lambda,
   mu,
-  nu,
+  delta,
   psi,
   phi,
   omega,
@@ -28,7 +28,7 @@ when the infection can occur.}
 \item{mu}{the rate of the exponential distribution of the time from
 the start of the infectiousness to the time of recovery.}
 
-\item{nu}{the rate of the exponential distribution of the latent periods.}
+\item{delta}{the rate of the exponential distribution of the latent periods.}
 
 \item{psi}{the rate of the exponential distribution of the time before
 the first vaccine dose.}
@@ -90,7 +90,7 @@ infection, exposition, removal, death, vaccination and renewed
 susceptibility times.
 }
 \examples{
-gener.sveird(lambda = 2, mu = 0.5, nu = 0.25, psi = 0.2, omega = 0.05,
+gener.sveird(lambda = 2, mu = 0.5, delta = 0.25, psi = 0.2, omega = 0.05,
              phi = 0.1, max.duration = 100, kappa = 0.1, s0 = 1000,
              i0 = 1, v0 = 5, r0 = 10, all.comps = TRUE)
 }

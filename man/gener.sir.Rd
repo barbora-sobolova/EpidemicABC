@@ -4,7 +4,7 @@
 \alias{gener.sir}
 \title{Generate an SIR epidemic}
 \usage{
-gener.sir(lambda, mu, n.pop = 100, m = 1, max.infections = n.pop)
+gener.sir(lambda, mu, s0 = 100, i0 = 1, max.infections = s0)
 }
 \arguments{
 \item{lambda}{the rate of the Poisson process, which generates the points
@@ -12,23 +12,23 @@ when the infection can occur.}
 
 \item{mu}{the rate of the exponential distribution of the infectious periods.}
 
-\item{n.pop}{the total population size excluding the initial infectious
+\item{s0}{the total population size excluding the initial infectious
 individuals.}
-
-\item{m}{the number of initial infectious individuals at the beginning of the
-epidemic.}
 
 \item{max.infections}{how many infections can occur before the epidemic
 stops. Use especially for the ABC algorithm  when the population is large
 to reduce the amount of time spent on generating a single epidemic, which
 is too different from the observed one anyway. The value of maximal
 infections must be set manually regarding the data.}
+
+\item{m}{the number of initial infectious individuals at the beginning of the
+epidemic.}
 }
 \value{
 A list of two numerical vectors \code{I} and \code{R} and a logical
     value \code{stopped}. Initial infectious individuals are included in the
-    first \code{m} positions. Hence both vectors are of length
-    \code{m} + \code{n.pop}.
+    first \code{i0} positions. Hence both vectors are of length
+    \code{i0} + \code{s0}.
     \itemize{
     \item \code{I} the infection times for each individual
     \item \code{R} the recovery times for each individual
@@ -42,5 +42,5 @@ infection and removal times.
 }
 \examples{
 set.seed(80)
-gener.sir(n.pop = 1000, m = 5, lambda = 0.6, mu = 0.5)
+gener.sir(s0 = 1000, i0 = 5, lambda = 0.6, mu = 0.5)
 }

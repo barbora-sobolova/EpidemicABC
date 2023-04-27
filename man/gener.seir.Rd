@@ -4,7 +4,7 @@
 \alias{gener.seir}
 \title{Generates a course of an SEIR epidemic.}
 \usage{
-gener.seir(lambda, mu, nu, n.pop = 100, m = 1, max.infections = n.pop)
+gener.seir(lambda, mu, delta, s0 = 100, i0 = 1, max.infections = s0)
 }
 \arguments{
 \item{lambda}{the rate of the Poisson process, which generates the points
@@ -12,12 +12,12 @@ when the infection can occur.}
 
 \item{mu}{the rate of the exponential distribution of the infectious periods.}
 
-\item{nu}{the rate of the exponential distribution of the latent periods.}
+\item{delta}{the rate of the exponential distribution of the latent periods.}
 
-\item{n.pop}{the total population size excluding the initial infectious
+\item{s0}{the total population size excluding the initial infectious
 individuals.}
 
-\item{m}{the number of initial infectious individuals at the beginning of the
+\item{i0}{the number of initial infectious individuals at the beginning of the
 epidemic.}
 
 \item{max.infections}{how many infections can occur before the epidemic
@@ -30,7 +30,7 @@ infections must be set manually regarding the data.}
 A list of three numerical vectors \code{E}, \code{I} and \code{R}
     and a logical value \code{stopped}. Initial infectious individuals are
     included in the first \code{m} positions. Hence all three vectors are of
-    length \code{m} + \code{n.pop}.
+    length \code{i0} + \code{s0}.
     \itemize{
     \item \code{I} the infection times for each individual
     \item \code{E} the exposition times for each individual
@@ -44,5 +44,5 @@ Generates a course of an SEIR epidemic. Returns vector of
 infection, exposition and removal times.
 }
 \examples{
-gener.seir(n.pop = 1000, m = 5, lambda = 0.6, mu = 0.3, nu = 1)
+gener.seir(s0 = 1000, i0 = 5, lambda = 0.6, mu = 0.3, delta = 1)
 }

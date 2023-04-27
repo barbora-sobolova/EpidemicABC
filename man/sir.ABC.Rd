@@ -6,9 +6,9 @@
 \usage{
 sir.ABC(
   I.obs,
-  n.pop,
-  m,
-  max.infections = n.pop,
+  s0,
+  i0,
+  max.infections = s0,
   times = 100,
   max.times = 10000,
   tolerance = 100,
@@ -19,170 +19,263 @@ sir.ABC(
   importance = list(lambda.samp = NULL, mu.samp = NULL, lambda.dens = NULL, mu.dens =
     NULL),
   prior.params = list(...),
-  importance.params = list(...)
+  importance.params = list(...),
+  other.mod = NULL,
+  other.mod.params = list(...)
 )
 }
 \arguments{
-\item{I.obs}{A positive integer valued vector of daily case counts. Days
-with zero cases must be included.}
+\item{I.obs}{a positive integer valued vector of daily (weekly, etc.) case
+counts. Days with zero cases must be included.}
 
-\item{n.pop}{A positive integer specifying the total population size
-excluding the initial infectious individuals.}
+\item{max.infections}{the maximum number of infections to occur in a single
+epidemic. If the epidemic tends to generate considerably more infections
+than the observed epidemic, it stops immediately and the proposed
+particle in the ABC algorithm is rejected. Use especially for the ABC
+algorithm when the  population is large (> 10,000) to reduce the amount
+of time spent on generating a single epidemic. The value of maximal
+infections must be set manually regarding the data I.obs.}
 
-\item{m}{A positive integer specifying the number of infectious individuals
-at the beginning of the epidemic.}
+\item{times}{a desired size of the sample from the approximate posterior
+distribution.}
 
-\item{max.infections}{A positive integer specifying the maximum number of 
-infections to occur in a single epidemic. If the epidemic tends to generate
-more infections, it stops immediately and the proposed particle in the ABC 
-algorithm is rejected. Use especially for the ABC algorithm when the 
-population is large to reduce the amount of time spent on generating a
-single epidemic. The value of maximal infections must be set manually 
-regarding the data I.obs.}
+\item{max.times}{a maximal number of iterations.}
 
-\item{times}{A desired size of the sample from the approximate posterior
-distribution}
-
-\item{max.times}{A maximal number of iterations}
-
-\item{tolerance}{A positive number specifying the tolerance for accepting 
+\item{tolerance}{a positive number specifying the tolerance for accepting
 proposed particles.}
 
-\item{transf}{A function transforming the case count. Must be specified
-with one parameters - a case counts vector. The population size and the
-number of initial infectious can be used too, since these variables exist
-within the 'sir.ABC' function. Their names are 'n.pop' and 'm' 
-respectively.}
+\item{transf}{a function transforming the case count. Must be specified
+with a single parameter - a case counts vector. If other parameters are
+intended to be used in the \code{transf} function (e.g.the population
+size, or the number of initial infectious individuals), they must be
+defined globally.}
 
-\item{kern}{A kernel non-negative function, symmetric
-around zero, with maximum at zero. Must be specified without any additional 
-parameters, i.e. Must be a function of only the value at which we wish to 
-evaluate the kernel.}
+\item{kern}{a kernel function (non-negative , symmetric around zero, with
+maximum at zero). Must be specified without any additional parameters,
+i.e. Must be a function of only the value at which we wish to evaluate
+the kernel.}
 
-\item{dist.metr}{Specification of the Mahalanobis distance metric between 
-the observed and simulated summary statistic. Must be specified as an 
-inverse of a positive definite matrix of the distance metric or the string 
-"euclidean". In the latter case, standard euclidean distance is used. 
-Use the matrix option only if the dimension of the summary statistics is 
-known beforehands!}
+\item{dist.metr}{the specification of the Mahalanobis distance metric between
+the observed and simulated summary statistic. Must be specified as an
+inverse of a positive definite matrix of the distance metric or the
+string "euclidean". In the latter case, standard euclidean distance is
+used. Use the matrix option only if the dimension of the summary
+statistics is known beforehands!}
 
-\item{prior}{A named list specifying the prior distribution of 'lambda' and 
-'mu'. Both distributions are considered independent! Therefore the joint
-distribution is a product of the marginals. Must be either of the form:
-list(lambda.samp = prior distribution of 'lambda',
-mu.samp = prior distribution of 'mu') for the Rejection sampling variant, 
-or of the form: list(lambda.samp = prior sampler of 'lambda',
-mu.samp = prior sampler of 'mu', lambda.dens = prior density of 'lambda',
-mu.dens = prior density of 'mu') for the Importance sampling variant.
-In case of the Importance sampling, the sampler and the density functions
-accept the same parameters passed from 'prior.params'.}
+\item{prior}{a named list specifying the prior distribution of the epidemic
+parameters 'lambda' and 'mu'. Both distributions are considered
+independent! Therefore the joint distribution is a product of the
+marginals. For the exact syntax see the Details section.}
 
-\item{importance}{A named list specifying the importance distribution of 
-'lambda' and 'mu'. Must be of the form: 
-list(lambda.dens = importance density of 'lambda',
-mu.dens = importance density of 'mu'). The sampler and the density 
-functions accept the same parameters passed from 'prior.params'.}
+\item{importance}{a named list specifying the importance distribution of
+'lambda' and 'mu'. For the exact syntax see the Details section.}
 
-\item{prior.params}{A named list specifying parameters of the prior 
-distribution of 'lambda' and 'mu'. These prior parameters are passed to 
-the functions specified in the parameter 'prior'. Must be of the form:
-list(lambda = c(params for the prior sampler and density of lambda),
-mu = c(params for the prior sampler and density of mu)).}
+\item{prior.params}{a named list specifying parameters of the prior
+distribution of 'lambda' and 'mu'. These prior parameters are passed to
+the functions specified in the parameter \code{prior}. For the exact
+syntax see the Details section.}
 
-\item{importance.params}{A named list specifying parameters of the 
-importance distribution of 'lambda' and 'mu'. These prior parameters are 
-passed to the functions specified in the parameter 'importance'. Must be of 
-the form: 
-list(lambda = c(params for the importance sampler and density of lambda),
-mu = c(params for the importance sampler and density of mu)).}
+\item{importance.params}{a named list specifying parameters of the
+importance distribution of 'lambda' and 'mu'. These prior parameters are
+passed to the functions specified in the parameter \code{importance}.
+For the exact syntax see the Details section.}
+
+\item{other.mod}{An alternative function sampling from the model, which 
+returns a list with element of infection times \code{I} and logical value
+\code{stopped}, which is \code{TRUE} if the \code{max.infections} was
+reached. See examples for more details.}
+
+\item{other.mod.params}{A named lists of parameters supplied to the 
+\code{other.mod} function.}
+
+\item{n.pop}{the total population size excluding the initial infectious
+individuals.}
+
+\item{m}{the number of infectious individuals at the beginning of the
+epidemic.}
 }
 \value{
-A list consisting of five to seven elements: a numerical matrix containing 
-accepted particles, a numerical matrix containing accepted particles
-adjusted by the linear regression, a list of summary statistics, total 
-number of iterations and number of iterations, which resulted in accepting
-the proposed particle. In case of importance sampling, there is an 
-additional numerical matrix of importance weights. If a transformation
-is used, then list of non-transformed case counts is returned too.
+a list consisting of five to seven elements:
+    \itemize{
+        \item \code{accept.parts} a matrix containing the accepted particles
+        \item \code{accept.parts.adj} a matrix containing accepted particles
+        adjusted by the linear regression
+        \item \code{summary.stats} a list of summary statistics
+        \item \code{n.iteration} the total number of iterations
+        \item \code{n.accepted} the number of iterations, which resulted in
+        accepting the proposed particle
+    }
+   In case of the importance sampling, there is an additional vector of the
+   importance weights \code{IS.weights}. If a kernel was used, there is also
+   a vector \code{kernel.weights}. If a transformation is used, then the list
+   of the non-transformed case counts is returned too as the
+   \code{daily.cases.list}.
 }
 \description{
 Performs the classic Approximate Bayesian computation algorithm
 for the SIR stochastic model.
 }
+\details{
+The parameter \code{prior} must be either of the form:
+
+\code{list(lambda.samp = prior distribution of 'lambda',
+           mu.samp = prior distribution of 'mu')}
+
+for the Rejection sampling variant, or:
+
+\code{list(lambda.samp = prior sampler of 'lambda',
+           mu.samp = prior sampler of 'mu',
+           lambda.dens = prior density of 'lambda',
+           mu.dens = prior density of 'mu')}
+
+for the Importance sampling variant. In case of the Importance sampling, the
+sampler and the density functions accept the same parameters passed from
+\code{prior.params}.
+
+The parameter \code{importance} must be of the form:
+
+\code{list(lambda.dens = importance density of 'lambda',
+      mu.dens = importance density of 'mu')}
+
+The sampler and the density functions accept the same parameters passed from
+\code{importance.params}.
+
+The parameter \code{prior.params} must be of the form:
+
+\code{list(lambda = c(params for the prior sampler and the density of lambda),
+           mu = c(params for the prior sampler and the density of mu))}
+
+
+The parameter \code{importance.params} must be of the form:
+
+\code{list(lambda = c(params for the importance sampler and the density of lambda),
+           mu = c(params for the importance sampler and the density of mu))}
+}
 \examples{
 
-transf.sqrt <- function (x) {
- sqrt(x)
-}
-gse <- gener.sir(lambda = 1.5, mu = 0.5, n.pop = 100, m = 5, 
-max.infections = max.infections)
-I <- as.vector(table(floor(gse$I)))
+epi.obs <- c(6, 0, 1, 4, 7, 5, 9, 14, 17, 11, 10, 13, 6, 9, 5, 2, 5, 7, 11, 9,
+ 12, 19, 13, 12, 13, 16, 19, 10, 19, 19, 7, 12, 11, 11, 9, 10, 10, 13, 18, 5,
+  4, 8, 3, 1, 3, 3, 2, 2, 0)
+  
+# The transformation of the case counts onto the estimates of the offspring
+# mean m.hat and the offspring variance sigma2.hat of the branching process
+# approximating the general stochastic epidemic.The estimation uses case
+# counts up to the highest point of the epidemic. If this highest point was
+# the first day, the epidemic tends to cease very early, which does not
+# qualitatively correspond to a longer epidemic, which we often observe (and
+# which is in this case simulated using the seed 79). However the offspring
+# mean and variance may be within the tolerance region and the proposed
+# particle may be accepted. So the summary statistic is set as a sufficiently
+# large number, which leads to the rejection.
+i0 <- 5
+transf <- function (x) {
 
-# The Importance sampling variant without kernel, with the prior 
-# distribution Unif(0.01, 2) for lambda, Unif(0.01, 1.5)  for mu respectively
-# and the importance distribution Gamma(2, 2) for both lambda and mu.
-# The square root transformation of the case counts is used.
-sir.ABC(
-  I, 
-  n.pop = n.pop, 
-  m = m, 
-  times = 1e3,
-  transf = transf,
-  max.times = 2 * 1e4, 
-  tolerance = 14,
-  kern = NULL,
-  prior = c(lambda.samp = runif, mu.samp = runif,
-            lambda.dens = dunif, mu.dens = dunif),
-  prior.params = list(lambda = c(min = 0.01, max = 2), 
-                      mu = c(min = 0.01, max = 1.5)),
-  importance = list(lambda.samp = rgamma, mu.samp = rgamma,
-                    lambda.dens = dgamma, mu.dens = dgamma),
-  importance.params = list(lambda = c(shape = 2, rate = 2),
-                            mu = c(shape = 2, rate = 2))
-             
-# The transformation of the case counts onto the vector with the total size
-# of the epidemic as the first element and the total length of the epidemic
-# as the second element.
-# element
-transf.total <- function (x) {
-   non.zero <- x != 0
-   return(c(sum(x[non.zero]), 
-            ifelse(any(non.zero), max(which(non.zero)), 0)))
+  N <- which.max(x)
+  if (N == 1) {
+  return(c(1e7, 1e7))
+  }
+  x.incr <- c(x[1] - i0, x[2:N])
+  x.shifted <- c(i0, x.incr[-N])
+
+  m.hat <- sum(x.incr) / sum(x.shifted)
+  sigma2.hat <- mean(x.shifted * (ifelse(x.shifted == 0,
+                                         1, x.incr / x.shifted) - m.hat) ^ 2)
+  return(c(m.hat, sigma2.hat))
 }
- 
-# The Rejection sampling variant with a Gaussian kernel, with the prior 
-# distribution Unif(0.01, 2) for lambda, Unif(0.01, 1.5)  for mu respectively.  
-# The transformation 'transf.total' is used, where we give the double weight
-# to the total size (the first element of the summary statistics) by the
-# 'dist.metr' parameter.                         
+
+# The Importance sampling variant without kernel, with the uniform prior
+# distribution Unif(0.1, 2.5), Unif(0.1, 1.5) for 'lambda' and 'mu'
+# respectively and the importance distribution Gamma(2, 2) for both
+# 'lambda' and 'mu'. The transformation to the branching process
+# characteristics is used, where we put 10-times more weight onto the 
+# offspring mean via the 'dist.metr' parameter.
+set.seed(75)
 sir.ABC(
-  I, 
-  n.pop = n.pop, 
-  m = m, 
-  times = 1e3, max.times = 2 * 1e4,
-  tolerance = 350, 
-  kern = dnorm,
-  dist.metr = diag(c(2, 1)),
-  transf = transf.total,
-  prior = c(lambda.samp = runif, mu.samp = runif),
-  prior.params = list(lambda = c(min = 0.01, max = 2), 
-                      mu = c(min = 0.01, max = 1.5))
+  epi.obs, 
+  s0 = s0, 
+  i0 = i0,
+  times = 1e2, 
+  transf = transf,
+  dist.metr = diag(c(10, 1)),
+  max.times = 2e3,
+  tolerance = 0.8, 
+  kern = NULL,
+  prior = c(lambda.dens = dunif, mu.dens = dunif),
+  prior.params = list(lambda = c(min = 0.1, max = 2.5), 
+                      mu = c(min = 0.1, max = 1.1)), 
+  importance = list(lambda.samp = rgamma, mu.samp = rgamma,
+  lambda.dens = dgamma, mu.dens = dgamma),
+  importance.params = list(lambda = c(shape = 2, rate = 2),
+                           mu = c(shape = 2, rate = 2))
 )
 
-# The Rejection sampling variant with a Gaussian kernel, with the prior 
-# distribution Unif(0.01, 2) for lambda, Unif(0.01, 1.5)  for mu respectively.  
-# No transformation is used.                      
+# The Rejection sampling variant with the gaussian kernel, with the prior
+# distribution Unif(0.1, 2.5) and Unif(0.1, 1.1) for 'lambda' and 'mu'
+# respectively. No transformation is used.
+set.seed(76)
 sir.ABC(
-  I, 
-  n.pop = n.pop, 
-  m = m, 
-  times = 1e3, max.times = 2 * 1e4,
-  tolerance = 80, 
+  epi.obs,
+  s0 = 1000,
+  i0 = 5,
+  max.infections = 500,
+  times = 1e2,
+  max.times = 2e3,
+  tolerance = 70,
   kern = dnorm,
-  dist.metr = diag(c(2, 1)),
-  transf = transf.total,
   prior = c(lambda.samp = runif, mu.samp = runif),
-  prior.params = list(lambda = c(min = 0.01, max = 2), 
-                      mu = c(min = 0.01, max = 1.5))
+  prior.params = list(lambda = c(min = 0.1, max = 2.5),
+                      mu = c(min = 0.1, max = 1.1))
+)
+
+# The Rejection sampling variant with the gaussian kernel, with the prior
+# distribution Unif(0.1, 2.5) and Unif(0.1, 1.1) for 'lambda' and 'mu'
+# respectively. An alternative function from sampling from the model is used
+# namely the 'ssa.adaptivetau' from the 'adaptivetau' library. No 
+# transformation is used.
+
+# Setting up the alternative sampling function
+library(adaptivetau)
+
+transitions <- list(
+  c(S = -1, I = +1),  # infection
+  c(I = -1, R = +1)  # recovery
+  ) 
+  
+rates <- function (x, params, t) {
+  s0 <- x["S"] + x["I"] + x["R"]  # total population size
+  c(params$lambda * x["S"] * x["I"] / s0, # rate of infection
+  params$mu * x["I"])  # rate of recovery
+  }
+    
+ epi.len <- length(epi.obs) + 20
+    
+ model <- function (lambda, mu, init.values, transitions, rateFunc,
+  max.duration) {
+  epi <- as.data.frame(
+  ssa.adaptivetau(init.values = init.values, transitions = transitions,
+                  rateFunc = rateFunc, tf = max.duration,
+                  params = list(lambda = lambda, mu = mu))
+                  )
+ return(list(I = c(rep(0, i0), epi$time[c(0, -diff(epi$S)) > 0]),
+  stopped = FALSE))  # We ignore the max.infection parameter in this example.
+}
+
+# Algorithm itself
+sir.ABC(
+  epi.obs, 
+  s0 = s0, 
+  i0 = i0, 
+  times = 1e2, 
+  max.times = 2e3, 
+  tolerance = 70, 
+  kern = dnorm,
+  prior = c(lambda.samp = runif, mu.samp = runif),
+  prior.params = list(lambda = c(min = 0.1, max = 2.5), 
+                      mu = c(min = 0.1, max = 1.1)
+                      ),
+  other.mod = model,
+  other.mod.params = list(transitions = transitions, rateFunc = rates,
+                          max.duration = epi.len,
+                          init.values = c(S = s0, I = i0, R = 0))
 )
 }

@@ -6,9 +6,9 @@
 \usage{
 sir.MCMC.ABC(
   I.obs,
-  n.pop,
-  m,
-  max.infections = n.pop,
+  s0,
+  i0,
+  max.infections = s0,
   times = 100,
   max.init.times = 30,
   burn.in = floor(0.1 * times),
@@ -18,17 +18,19 @@ sir.MCMC.ABC(
   dist.metr = "euclidean",
   prior = list(lambda.samp = runif, mu.samp = runif, lambda.dens = NULL, mu.dens = NULL),
   Sigma = diag(c(1, 1)),
-  prior.params = list(...)
+  prior.params = list(...),
+  other.mod = NULL,
+  other.mod.params = list(...)
 )
 }
 \arguments{
 \item{I.obs}{a positive integer valued vector of daily (weekly, etc.) case
 counts. Days with zero cases must be included.}
 
-\item{n.pop}{the total population size excluding the initial infectious
+\item{s0}{the total population size excluding the initial infectious
 individuals.}
 
-\item{m}{the number of infectious individuals at the beginning of the
+\item{i0}{the number of infectious individuals at the beginning of the
 epidemic.}
 
 \item{max.infections}{the maximum number of infections to occur in a single
@@ -72,12 +74,19 @@ independent! Therefore the joint distribution is a product of the
 marginals. For the exact syntax see the Details section.}
 
 \item{Sigma}{a positive definite covariance matrix of the Markov proposal 
-distribution, which is assumed to be a bivariate Gaussian.}
+distribution, which is assumed to be a bivariate Gaussian.
+#' @param other.mod An alternative function sampling from the model, which 
+returns a list with element of infection times \code{I} and logical value
+\code{stopped}, which is \code{TRUE} if the \code{max.infections} was
+reached. See examples of the \code{sir.ABC} function for more details.}
 
 \item{prior.params}{a named list specifying parameters of the prior
 distribution of 'lambda' and 'mu'. These prior parameters are passed to
 the functions specified in the parameter \code{prior}. For the exact
 syntax see the Details section.}
+
+\item{other.mod.params}{A named lists of parameters supplied to the 
+\code{other.mod} function.}
 }
 \value{
 a list consisting of five to seven elements:
@@ -98,53 +107,26 @@ algorithm for the SIR stochastic model.
 \details{
 The parameter \code{prior} must be of the form:
 
-\code{list(lambda.samp = prior sampler of 'lambda',
-           mu.samp = prior sampler of 'mu',
+\code{list(lambda.samp = sampler of 'lambda', 
+           mu.samp = sampler of 'mu', 
            lambda.dens = prior density of 'lambda',
            mu.dens = prior density of 'mu')}
 }
 \examples{
-# The transformation of the case counts onto the vector with
-n.pop <- 1000
-lambda <- 0.6
-mu <- 1 / 2
-m <- 5
-set.seed(80)
-gse <- gener.sir(lambda = lambda, mu = mu, n.pop = n.pop, m = m)
-I <- as.vector(table(floor(gse$I)))
-
-# The logarithmic transformation of the case counts.
-transf.log <- function (x) {
-  log(x + 1)
- }
+epi.obs <- c(6, 0, 1, 4, 7, 5, 9, 14, 17, 11, 10, 13, 6, 9, 5, 2, 5, 7, 11, 9,
+ 12, 19, 13, 12, 13, 16, 19, 10, 19, 19, 7, 12, 11, 11, 9, 10, 10, 13, 18, 5,
+ 4, 8, 3, 1, 3, 3, 2, 2, 0)
 
 # The variant without kernel, with the uniform prior distribution
-# Unif(0.01, 2), Unif(0.01, 1.5) for 'lambda' and 'mu' respectively. The
-# logarithmic transformation is used
-set.seed(78)
-sir.MCMC.ABC(
-  I, 
-  n.pop = n.pop,
-  m = m, times = 2 * 1e4,
-  burn.in = 100,
-  tolerance = 14,
-  prior = c(lambda.samp = runif, mu.samp = runif, 
-            lambda.dens = dunif, mu.dens = dunif), 
-  prior.params = list(lambda = c(min = 0.01, max = 2),
-                      mu = c(min = 0.01, max = 1.5))
-)
-
-# The variant without kernel, with the uniform prior distribution
-# Unif(0.01, 2), Unif(0.01, 1.5) for 'lambda' and 'mu' respectively. No
+# Unif(0.1, 2.5), Unif(0.1, 1.1) for 'lambda' and 'mu' respectively. No
 # transformation is used
 set.seed(78)
 sir.MCMC.ABC(
   I, 
-  n.pop = n.pop,
-  m = m, times = 2 * 1e4,
+  s0 = s0,
+  i0 = i0, times = 2 * 1e4,
   burn.in = 100,
   tolerance = 80,
-  transf = transf.log, 
   prior = c(lambda.samp = runif, mu.samp = runif, 
             lambda.dens = dunif, mu.dens = dunif), 
   prior.params = list(lambda = c(min = 0.01, max = 2),
@@ -162,15 +144,15 @@ transf.total <- function (x) {
 }
 
 # The variant with the gaussian kernel, with the prior distribution
-# Unif(0.01, 2) and Unif(0.1, 1.5) for 'lambda' and 'mu' respectively. The
+# Unif(0.1, 2.5) and Unif(0.1, 1.5) for 'lambda' and 'mu' respectively. The
 # transformation 'transf.total' is used, where we give the double weight
 # to the total size (the first element of the summary statistics) by the
 # 'dist.metr' parameter.
 set.seed(78)
 sir.MCMC.ABC(
   I$obs.cases,
-  n.pop = n.pop, 
-  m = m, 
+  s0 = s0, 
+  i0 = i0, 
   times = 2 * 1e4, 
   max.init.times = 30, 
   burn.in = 100, 
@@ -179,7 +161,7 @@ sir.MCMC.ABC(
   dist.metr = diag(c(2, 1)),
   prior = c(lambda.samp = runif, mu.samp = runif, 
             lambda.dens = dunif, mu.dens = dunif),
-  prior.params = list(lambda = c(min = 0.01, max = 2), 
-                      mu = c(min = 0.01, max = 1.5))
+  prior.params = list(lambda = c(min = 0.1, max = 2.5), 
+                      mu = c(min = 0.1, max = 1.1))
  )
 }

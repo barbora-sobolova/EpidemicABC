@@ -6,9 +6,9 @@
 \usage{
 seir.MCMC.ABC(
   I.obs,
-  n.pop,
-  m,
-  max.infections = n.pop,
+  s0,
+  i0,
+  max.infections = s0,
   times = 100,
   max.init.times = 30,
   burn.in = floor(0.1 * times),
@@ -16,20 +16,22 @@ seir.MCMC.ABC(
   transf = NULL,
   kern = NULL,
   dist.metr = "euclidean",
-  prior = list(lambda.samp = runif, mu.samp = runif, nu.samp = runif, lambda.dens = NULL,
-    mu.dens = NULL, nu.dens = NULL),
+  prior = list(lambda.samp = runif, mu.samp = runif, delta.samp = runif, lambda.dens =
+    NULL, mu.dens = NULL, delta.dens = NULL),
   Sigma = diag(c(1, 1, 1)),
-  prior.params = list(...)
+  prior.params = list(...),
+  other.mod = NULL,
+  other.mod.params = list(...)
 )
 }
 \arguments{
 \item{I.obs}{a positive integer valued vector of daily (weekly, etc.) case
 counts. Days with zero cases must be included.}
 
-\item{n.pop}{the total population size excluding the initial infectious
+\item{s0}{the total population size excluding the initial infectious
 individuals.}
 
-\item{m}{the number of infectious individuals at the beginning of the
+\item{i0}{the number of infectious individuals at the beginning of the
 epidemic.}
 
 \item{max.infections}{the maximum number of infections to occur in a single
@@ -80,6 +82,14 @@ with independent marginals.}
 distribution of 'lambda' and 'mu'. These prior parameters are passed to
 the functions specified in the parameter \code{prior}. For the exact
 syntax see the Details section.}
+
+\item{other.mod}{An alternative function sampling from the model, which 
+returns a list with element of infection times \code{I} and logical value
+\code{stopped}, which is \code{TRUE} if the \code{max.infections} was
+reached. See examples of the 'seir.ABC' function for more details.}
+
+\item{other.mod.params}{A named lists of parameters supplied to the 
+\code{other.mod} function.}
 }
 \value{
 a list consisting of five to seven elements:
@@ -100,10 +110,12 @@ algorithm for the SIR stochastic model.
 \details{
 The parameter \code{prior} must be of the form:
 
-\code{list(lambda.samp = prior sampler of 'lambda',
-           mu.samp = prior sampler of 'mu',
+\code{list(lambda.samp = sampler of 'lambda', 
+           mu.samp = sampler of 'mu', 
+           delta.samp = sampler of 'delta',
            lambda.dens = prior density of 'lambda',
-           mu.dens = prior density of 'mu')}
+           mu.dens = prior density of 'mu',
+           delta.dens = prior density of 'delta')}
 }
 \examples{
 # The transformation of the case counts onto the estimates of the offspring
@@ -116,52 +128,53 @@ The parameter \code{prior} must be of the form:
 # mean and variance may be within the tolerance region and the proposed
 # particle may be accepted. So the summary statistic is set as a sufficiently
 # large number, which leads to the rejection.
-m <- 5
-n.pop <- 1000
 
-transf <- function (x) {
-   non.zero <- x != 0
-   return(c(sum(x[non.zero]), 
-            ifelse(any(non.zero), max(which(non.zero)), 0)))
-}
-set.seed(79)
-gse <- gener.seir(lambda = 0.55, mu = 0.5, n.pop = 1000, m = 5)
-I <- as.vector(table(floor(gse$I)))
+transf.sqrt <- function (x) {sqrt(x)}
+
+epi.obs <- c(5, 0, 0, 0, 2, 1, 0, 2, 0, 2, 2, 2, 4, 0, 3, 0, 1, 3, 1, 2, 2,
+   1, 0, 2, 2, 4, 1, 4, 3, 2, 2, 1, 1, 3, 2, 2, 7, 5, 4, 5, 6, 6, 4, 4, 6, 7,
+   8, 3, 7, 6, 7, 4, 6, 4, 4, 5, 7, 7, 7, 7, 8, 8, 10, 7, 9, 11, 11, 8, 12,
+   5, 7, 11, 1, 6, 6, 8, 8, 5, 4, 5, 5, 8, 6, 6, 6, 4, 5, 2, 9, 5, 8, 4, 2, 
+   2, 2, 0, 6, 7, 2, 3, 1, 4, 6, 7, 6, 5, 2, 2, 2, 3, 3, 1, 6, 1, 2, 3, 1, 2,
+   2, 1, 0, 0, 1, 3, 1, 1, 0, 3, 2, 1, 1, 1, 2, 1, 2, 0, 0, 0, 0, 1, 0, 0, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
 
 # The variant without kernel, with the uniform prior distribution
-# Unif(0.5, 2), Unif(0.1, 1.5) for 'lambda' and 'mu' respectively.
+# Unif(0.1, 2.5), Unif(0.1, 1.1), Unif(0.1, 1.1) for 'lambda', 'mu' and 
+# 'delta' respectively. Square root transformation is used. We set the 
+# maximum of infections as 700.
 
 set.seed(75)
 seir.MCMC.ABC(
   I,
-  n.pop = n.pop,
-  m = m,
+  s0 = s0,
+  i0 = i0,
   max.infections = 700,
-  times = 1e4,
-  max.init.times = 30,
+  times = 1e3,
+  max.init.times = 50,
   tolerance = 2.5,
-  transf = transf,
-  prior = c(lambda.samp = runif, mu.samp = runif),
-  prior.params = list(lambda = c(min = 0.01, max = 2),
-                      mu = c(min = 0.01, max = 1.5)),
+  transf = transf.sqrt,
+  prior = c(lambda.samp = runif, mu.samp = runif, delta.samp = runif),
+  prior.params = list(lambda = c(min = 0.1, max = 2.5),
+                      mu = c(min = 0.1, max = 1.1),
+                      delta = c(min = 0.1, max = 1.1)),
   Sigma = diag(c(1, 1, 1))
 )
 
 # The variant with the gaussian kernel, with the prior distribution
-# Unif(0.5, 2) and Unif(0.1, 1.5) for 'lambda' and 'mu' respectively. No
+# Unif(0.1, 2.5) and Unif(0.1, 1.1) for 'lambda' and 'mu' respectively. No
 # transformation is used.
 set.seed(76)
 sir.MCMC.ABC(
   I,
-  n.pop = n.pop,
-  m = m,
-  max.infections = 700,
+  s0 = s0,
+  i0 = i0,
   times = 1e4,
-  max.init.times = 30,
+  max.init.times = 50,
   tolerance = 100,
   kern = dnorm,
   prior = c(lambda.samp = runif, mu.samp = runif),
-  prior.params = list(lambda = c(min = 0.01, max = 2),
-                      mu = c(min = 0.01, max = 1.5))
+  prior.params = list(lambda = c(min = 0.1, max = 2.5),
+                      mu = c(min = 0.1, max = 1.1))
 )
 }
